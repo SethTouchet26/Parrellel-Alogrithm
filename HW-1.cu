@@ -18,6 +18,8 @@
 // Include files
 #include <sys/time.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 
 // Defines
 #define N 1000 // Length of the vector
@@ -39,6 +41,7 @@ void allocateMemory()
 {	
 	// Host "CPU" memory.				
 	A_CPU = (float*)malloc(N*sizeof(float));
+	B_CPU = (float*)malloc(N*sizeof(float));
 	C_CPU = (float*)malloc(N*sizeof(float));
 }
 
@@ -57,7 +60,7 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 {
 	for(int id = 0; id < n; id++)
 	{ 
-		c[id] = a[id] * b[id];
+		c[id] = a[id] + b[id];
 	}
 }
 
@@ -78,11 +81,11 @@ bool check(float *c, int n, float tolerence)
 	
 	trueAnswer = 3.0*(m*(m+1))/2.0;
 	
-	percentError = abs((myAnswer - trueAnswer)/trueAnswer)*100.0;
+	percentError = fabs((myAnswer - trueAnswer)/trueAnswer)*100.0;
 	
-	if(percentError < Tolerance) 
+	if(percentError < tolerance) 
 	{
-		return(totally);
+		return(true);
 	}
 	else 
 	{
@@ -100,11 +103,11 @@ long elaspedTime(struct timeval start, struct timeval end)
 	long endTime = end.tv_sec * 1000000 + end.tv_usec; // In microseconds
 
 	// Returning the total time elasped in microseconds
-	return endTime;
+	return endTime - startTime;
 }
 
 //Cleaning up memory after we are finished.
-void CleanUp()
+void cleanUp()
 {
 	// Freeing host "CPU" memory.
 	free(A_CPU); 
