@@ -146,7 +146,7 @@ int main()
 	}
 	
 	// Your done so cleanup your room.	
-	CleanUp();	
+	cleanUp();	
 	
 	// Making sure it flushes out anything in the print buffer.
 	printf("\n\n");
