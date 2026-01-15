@@ -1,4 +1,4 @@
-// Name:
+// Name: Seth Touchet
 // Vector addition on the GPU, with one block
 // To compile: nvcc B_VectorAddGPU1Block.cu -o temp
 /*
