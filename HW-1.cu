@@ -26,7 +26,7 @@
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; 
-float Tolerance = 0.0;
+float tolerance = 0.0;
 
 // Function prototypes
 void allocateMemory();
@@ -135,7 +135,7 @@ int main()
 	gettimeofday(&end, NULL);
 	
 	// Checking to see if all went correctly.
-	if(check(C_CPU, N, Tolerance) == false)
+	if(check(C_CPU, N, tolerance) == false)
 	{
 		printf("\n\n Something went wrong in the vector addition\n");
 	}
