@@ -18,15 +18,13 @@
 // Include files
 #include <sys/time.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
 
 // Defines
 #define N 1000 // Length of the vector
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; 
-float tolerance = 0.0;
+float Tolerance = 0.0;
 
 // Function prototypes
 void allocateMemory();
@@ -81,9 +79,9 @@ bool check(float *c, int n, float tolerence)
 	
 	trueAnswer = 3.0*(m*(m+1))/2.0;
 	
-	percentError = fabs((myAnswer - trueAnswer)/trueAnswer)*100.0;
+	percentError = abs((myAnswer - trueAnswer)/trueAnswer)*100.0;
 	
-	if(percentError < tolerance) 
+	if(percentError <= tolerance) 
 	{
 		return(true);
 	}
@@ -107,7 +105,7 @@ long elaspedTime(struct timeval start, struct timeval end)
 }
 
 //Cleaning up memory after we are finished.
-void cleanUp()
+void CleanUp()
 {
 	// Freeing host "CPU" memory.
 	free(A_CPU); 
@@ -135,7 +133,7 @@ int main()
 	gettimeofday(&end, NULL);
 	
 	// Checking to see if all went correctly.
-	if(check(C_CPU, N, tolerance) == false)
+	if(check(C_CPU, N, Tolerance) == false)
 	{
 		printf("\n\n Something went wrong in the vector addition\n");
 	}
@@ -146,7 +144,7 @@ int main()
 	}
 	
 	// Your done so cleanup your room.	
-	cleanUp();	
+	CleanUp();	
 	
 	// Making sure it flushes out anything in the print buffer.
 	printf("\n\n");
