@@ -257,5 +257,9 @@ int main()
 	// Making sure it flushes out anything in the print buffer.
 	printf("\n\n");
 	
+	//when the length was set to 500 the results were CPU 1 microsecond and GPU was 1630 microsecond.
+	//when the length was set to 1000 the results were CPU 1 microsecond and GPU was 141 microsecond.
+	//when the length was set to 1500 the results were CPU 1 microsecond and GPU was 137 microsecond.
+
 	return(0);
 }
