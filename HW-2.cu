@@ -67,7 +67,7 @@
 #include <stdio.h>
 
 // Defines
-#define N 500 // Length of the vector
+#define N 1500 // Length of the vector
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
@@ -89,7 +89,7 @@ void cleanUp();
 // This will be the layout of the parallel space we will be using.
 void setUpDevices()
 {
-	BlockSize.x = N;
+	BlockSize.x = 750;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
@@ -136,8 +136,10 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 {
 	int id = threadIdx.x;
-	
-	c[id] = a[id] + b[id];
+	if (id < n)
+	{
+		c[id] = a[id] + b[id];
+	}
 }
 
 // Checking to see if anything went wrong in the vector addition.
@@ -257,9 +259,8 @@ int main()
 	// Making sure it flushes out anything in the print buffer.
 	printf("\n\n");
 	
-	//when the length was set to 500 the results were CPU 1 microsecond and GPU was 1630 microsecond.
-	//when the length was set to 1000 the results were CPU 1 microsecond and GPU was 141 microsecond.
-	//when the length was set to 1500 the results were CPU 1 microsecond and GPU was 137 microsecond.
+	//when the length was set to 500 the results were CPU 1 microsecond and GPU was 1630 microsecond (as it was starting up).
+	//when the length was set to 1500 the results were 
 
 	return(0);
 }
