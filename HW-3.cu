@@ -68,7 +68,7 @@ void setUpDevices()
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = 1;
+	GridSize.x = ((N-1)/BlockSize.x)+1; // adjusting the grid size to insure to take the block size x into account
 	GridSize.y = 1;
 	GridSize.z = 1;
 }
@@ -111,7 +111,7 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 // It adds vectors a and b on the GPU then stores result in vector c.
 __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 {
-	int id = threadIdx.x;
+	int id = (blockIdx.x)*(blockDim.x)+threadIdx.x; //having to adjust the code here to make sure it knows to use mulitple blocks
 	
 	while(id < n)
 	{
@@ -244,8 +244,8 @@ int main()
 	
 	// Making sure it flushes out anything in the print buffer.
 	printf("\n\n");
-
-	//Vectors were added and process took the CPU was 45 microseconds and the GPU was 178 microseconds.
+	
+	//It took the CPU 45 microseconds and the GPU 118 microseconds
 
 	return(0);
 }
