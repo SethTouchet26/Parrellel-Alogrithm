@@ -64,7 +64,7 @@ void cudaErrorCheck(const char *file, int line)
 // This will be the layout of the parallel space we will be using.
 void setUpDevices()
 {
-	BlockSize.x = 256;
+	BlockSize.x = 101;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
@@ -244,6 +244,8 @@ int main()
 	
 	// Making sure it flushes out anything in the print buffer.
 	printf("\n\n");
-	
+
+	//Vectors were added and process took the CPU was 45 microseconds and the GPU was 178 microseconds.
+
 	return(0);
 }
