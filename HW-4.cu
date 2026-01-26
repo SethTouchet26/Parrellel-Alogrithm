@@ -123,6 +123,7 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 {
 	for(int id = 0; id < n; id++)
 	{ 
+    c = sqrt(cos(a)*cos(a) + a*a + sin(a)*sin(a) - 1.0) + sqrt(cos(b)*cos(b) + b*b + sin(b)*sin(b) - 1.0);
 		c[id] = a[id] + b[id];
 	}
 }
@@ -132,7 +133,24 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 {
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
-	
+	int stride = blockDim.x * gridDim.x; // This is added to ensure
+
+    #pragma unroll 4
+    for (int id = tid; id < n; id += stride)
+    {
+        float av = a[id];
+        float bv = b[id];
+
+        float termA = sqrtf(cosf(av)*cosf(av) +
+                            av*av +
+                            sinf(av)*sinf(av) - 1.0f);
+
+        float termB = sqrtf(cosf(bv)*cosf(bv) +
+                            bv*bv +
+                            sinf(bv)*sinf(bv) - 1.0f);
+
+        c[id] = termA + termB;
+    }
 	if(id < N) // Making sure we are not working on memory we do not own.
 	{
 		c[id] = a[id] + b[id];
