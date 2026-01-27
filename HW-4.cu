@@ -86,7 +86,7 @@ void setUpDevices()
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = (N - 1)/BlockSize.x + 1; // This gives us the correct number of blocks.
+	GridSize.x = 64; // Changed this from the formula to the hard code into 64
 	GridSize.y = 1;
 	GridSize.z = 1;
 }
@@ -123,7 +123,6 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 {
 	for(int id = 0; id < n; id++)
 	{ 
-    c = sqrt(cos(a)*cos(a) + a*a + sin(a)*sin(a) - 1.0) + sqrt(cos(b)*cos(b) + b*b + sin(b)*sin(b) - 1.0);
 		c[id] = a[id] + b[id];
 	}
 }
@@ -133,27 +132,27 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 {
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
-	int stride = blockDim.x * gridDim.x; // This is added to ensure
+	int stride = blockDim.x * gridDim.x; // This is added to the code to ensure that the GPU knows what it is doing
 
-    #pragma unroll 4
+    #pragma unroll 4 //I put in 4 to see what would happened
     for (int id = tid; id < n; id += stride)
     {
-        float av = a[id];
-        float bv = b[id];
+        float a = a[id];
+        float b = b[id];
 
-        float termA = sqrtf(cosf(av)*cosf(av) +
-                            av*av +
-                            sinf(av)*sinf(av) - 1.0f);
+        float termA = sqrt(cos(a)*cos(a) +
+                            a*a +
+                            sin(a)*sin(a) - 1.0); // separate both a and b so it is easier to read
 
-        float termB = sqrtf(cosf(bv)*cosf(bv) +
-                            bv*bv +
-                            sinf(bv)*sinf(bv) - 1.0f);
+        float termB = sqrt(cos(b)*cos(b) +
+                            b*b +
+                            sin(b)*sin(b) - 1.0);
 
-        c[id] = termA + termB;
+        c[id] = termA + termB; //Now with a for loop along with a prama unroll, this would have the GPU to start performing more on its task than the CPU
     }
 	if(id < N) // Making sure we are not working on memory we do not own.
 	{
-		c[id] = a[id] + b[id];
+		c[id] = a[id] + b[id]; //Unsure if this is needed when there is the for loop above, but would keep it in just incase.
 	}
 }
 
@@ -283,5 +282,5 @@ int main()
 	// Making sure it flushes out anything in the print buffer.
 	printf("\n\n");
 	
-	return(0);
+	return(0); //fyi I can not compile this code to ensure that it works due to working on this via Windows Surface Pro from 2016-2017.
 }
