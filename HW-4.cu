@@ -135,7 +135,7 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 	int stride = blockDim.x * gridDim.x; // This is added to the code to ensure that the GPU knows what it is doing
 
     #pragma unroll 4 //I put in 4 to see what would happened
-    for (int id = tid; id < n; id += stride)
+    for (int id; id < n; id += stride)
     {
         float a = a[id];
         float b = b[id];
