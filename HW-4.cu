@@ -134,11 +134,13 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x; // This is added to the code to ensure that the GPU knows what it is doing
 
+	for (int i = id; id < n; id += stride)
+	(
     #pragma unroll 4 //I put in 4 to see what would happened
-    for (int id; id < n; id += stride)
+    for (int k = 0; k < 1; k++)
     {
-        float a = a[id];
-        float b = b[id];
+        float a = a[i];
+        float b = b[i];
 
         float termA = sqrt(cos(a)*cos(a) +
                             a*a +
