@@ -121,9 +121,20 @@ void innitialize()
 // Adding vectors a and b on the CPU then stores result in vector c.
 void addVectorsCPU(float *a, float *b, float *c, int n)
 {
-	for(int id = 0; id < n; id++)
-	{ 
-		c[id] = a[id] + b[id];
+	for (int i = 0; i < n; i++)
+    {
+        float av = a[i];
+        float bv = b[i];
+
+        float termA = sqrt(cos(av)*cos(av) +
+                            av*av +
+                            sin(av)*sin(av) - 1.0); // separate both a and b so it is easier to read
+
+        float termB = sqrt(cos(bv)*cos(bv) +
+                            bv*bv +
+                            sin(bv)*sin(bv) - 1.0);
+
+        c[i] = termA + termB;
 	}
 }
 
@@ -133,22 +144,20 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 {
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x; // This is added to the code to ensure that the GPU knows what it is doing
-
-	for (int i = id; id < n; id += stride)
-	(
-    #pragma unroll 4 //I put in 4 to see what would happened
-    for (int k = 0; k < 1; k++)
+	
+    #pragma unroll //
+    for (int i = id; id < n; i += stride)
     {
-        float a = a[i];
-        float b = b[i];
+        float av = a[i];
+        float bv = b[i];
 
-        float termA = sqrt(cos(a)*cos(a) +
-                            a*a +
-                            sin(a)*sin(a) - 1.0); // separate both a and b so it is easier to read
+        float termA = sqrt(cos(av)*cos(av) +
+                            av*av +
+                            sin(av)*sin(av) - 1.0); // separate both a and b so it is easier to read
 
-        float termB = sqrt(cos(b)*cos(b) +
-                            b*b +
-                            sin(b)*sin(b) - 1.0);
+        float termB = sqrt(cos(bv)*cos(bv) +
+                            bv*bv +
+                            sin(bv)*sin(bv) - 1.0);
 
         c[id] = termA + termB; //Now with a for loop along with a prama unroll, this would have the GPU to start performing more on its task than the CPU
     }
