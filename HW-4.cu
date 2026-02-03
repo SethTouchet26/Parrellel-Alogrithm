@@ -121,20 +121,9 @@ void innitialize()
 // Adding vectors a and b on the CPU then stores result in vector c.
 void addVectorsCPU(float *a, float *b, float *c, int n)
 {
-	for (int i = 0; i < n; i++)
+	for (int id = 0; id < n; id++)
     {
-        float av = a[id];
-        float bv = b[id];
-
-        termA = sqrt(cos(a)*cos(a) +
-                            a*a +
-                            sin(av)*sin(av) - 1.0); // separate both a and b so it is easier to read
-
-        termB = sqrt(cos(bv)*cos(bv) +
-                            bv*bv +
-                            sin(bv)*sin(bv) - 1.0);
-
-        c[i] = termA + termB;
+        c[id] = sqrt(cos(a[id])*cos(a[id]) + a[id]*a[id] + sin(a[id])*sin(a[id]) - 1.0)+ sqrt(cos(b[id])*cos(b[id]) + b[id]*b[id] + sin(b[id])*sin(b[id]) - 1.0);
 	}
 }
 
@@ -145,25 +134,16 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 	int id = blockIdx.x*blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x; // This is added to the code to ensure that the GPU knows what it is doing
 	
-    #pragma unroll //This will tell the complier to replaces a loop with multiple copies of the loop body to reduce the loop overhead
+    #pragma unroll 4//This will tell the complier to replaces a loop with multiple copies of the loop body to reduce the loop overhead
     for (int i = id; id < n; i += stride)
     {
-        float av = a[id];
-        float bv = b[id];
 
-        float termA = sqrt(cos(av)*cos(av) +
-                            av*av +
-                            sin(av)*sin(av) - 1.0); // separate both a and b so it is easier to read
-
-        float termB = sqrt(cos(bv)*cos(bv) +
-                            bv*bv +
-                            sin(bv)*sin(bv) - 1.0);
-
-        c[id] = termA + termB; //Now with a for loop along with a prama unroll, this would have the GPU to start performing more on its task than the CPU
-    }
+    c[id] = sqrt(cos(a[id])*cos(a[id]) + a[id]*a[id] + sin(a[id])*sin(a[id]) - 1.0)+ sqrt(cos(b[id])*cos(b[id]) + b[id]*b[id] + sin(b[id])*sin(b[id]) - 1.0); //Now with a for loop along with a prama unroll, this would have the GPU to start performing more on its task than the CPU
+    
+	}
 	if(id < N) // Making sure we are not working on memory we do not own.
 	{
-		c[id] = a[id] + b[id]; //Unsure if this is needed when there is the for loop above, but would keep it in just incase.
+		c[id] = a[id] + b[id];
 	}
 }
 
