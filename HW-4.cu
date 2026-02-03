@@ -123,14 +123,14 @@ void addVectorsCPU(float *a, float *b, float *c, int n)
 {
 	for (int i = 0; i < n; i++)
     {
-        float av = a[i];
-        float bv = b[i];
+        float av = a[id];
+        float bv = b[id];
 
-        float termA = sqrt(cos(av)*cos(av) +
-                            av*av +
+        termA = sqrt(cos(a)*cos(a) +
+                            a*a +
                             sin(av)*sin(av) - 1.0); // separate both a and b so it is easier to read
 
-        float termB = sqrt(cos(bv)*cos(bv) +
+        termB = sqrt(cos(bv)*cos(bv) +
                             bv*bv +
                             sin(bv)*sin(bv) - 1.0);
 
@@ -148,8 +148,8 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
     #pragma unroll //This will tell the complier to replaces a loop with multiple copies of the loop body to reduce the loop overhead
     for (int i = id; id < n; i += stride)
     {
-        float av = a[i];
-        float bv = b[i];
+        float av = a[id];
+        float bv = b[id];
 
         float termA = sqrt(cos(av)*cos(av) +
                             av*av +
