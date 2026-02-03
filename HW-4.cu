@@ -135,10 +135,10 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 	int stride = blockDim.x * gridDim.x; // This is added to the code to ensure that the GPU knows what it is doing
 	
     #pragma unroll 4//This will tell the complier to replaces a loop with multiple copies of the loop body to reduce the loop overhead
-    for (int i = id; id < n; i += stride)
+    for (int i = id; i < n; i += stride)
     {
 
-    c[id] = sqrt(cos(a[id])*cos(a[id]) + a[id]*a[id] + sin(a[id])*sin(a[id]) - 1.0)+ sqrt(cos(b[id])*cos(b[id]) + b[id]*b[id] + sin(b[id])*sin(b[id]) - 1.0); //Now with a for loop along with a prama unroll, this would have the GPU to start performing more on its task than the CPU
+    c[i] = sqrt(cos(a[i])*cos(a[i]) + a[i]*a[i] + sin(a[i])*sin(a[i]) - 1.0)+ sqrt(cos(b[i])*cos(b[i]) + b[i]*b[i] + sin(b[i])*sin(b[i]) - 1.0); //Now with a for loop along with a prama unroll, this would have the GPU to start performing more on its task than the CPU
     
 	}
 	if(id < N) // Making sure we are not working on memory we do not own.
