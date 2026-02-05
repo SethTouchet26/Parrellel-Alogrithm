@@ -53,21 +53,37 @@ void cudaErrorCheck(const char *file, int line)
 	}
 }
 #define CUDA_CHECK() cudaErrorCheck(__FILE__, __LINE__)
+float escapeOrNotColor(float x, float y)
 
-__device__ float escapeOrNotColor (float x, float y) // just to be sure its for CUDA 
 {
-	void setUpDevice()
-	{
-		BlockSize.x = 16;
-		BlockSize.y = 16;
-		BlockSize.z = 1;
-
-		GridSize.x = ;
-		GridSize.y = ;
-		GridSize.z = 1;
-	}
+	float mag,tempX;
+	int count;
 	
+	int maxCount = MAXITERATIONS;
+	float maxMag = MAXMAG;
+	
+	count = 0;
+	mag = sqrt(x*x + y*y);;
+	while (mag < maxMag && count < maxCount) 
+	{	
+		tempX = x; //We will be changing the x but we need its old value to find y.
+		x = x*x - y*y + A;
+		y = (2.0 * tempX * y) + B;
+		mag = sqrt(x*x + y*y);
+		count++;
+	}
+	if(count < maxCount) 
+	{
+		return(0.0f);
+	}
+	else
+	{
+		return(1.0f);
+	}
+}
 
+__device__ float escapeOrNotColorGPU(float x, float y) // just to be sure its for CUDA 
+{
 	float mag,tempX;
 	int count;
 	
@@ -105,11 +121,21 @@ __global__ void juliaKernel(float *pixels,int width, int height,float xmin, floa
     float x = xmin + ix * stepX;
     float y = ymin + iy * stepY;
 
-    float color = escapeOrNotColor(x, y);
+    float color = escapeOrNotColorGPU(x, y);
     
     pixels[index]     = color; // Red
-    pixels[index + 1] = 0.0;  // Green
-    pixels[index + 2] = 0.0;  // Blue
+    pixels[index + 1] = 0.0f;  // Green
+    pixels[index + 2] = 0.0f;  // Blue
+}
+
+void setUpDevice(void)
+{
+	cudaSetDevice(0);
+	CUDA_CHECK();
+
+	BlockSize = dim3(16,16,1);
+	GridSize = dim3((WindowWidth + BlockSize.x - 1)/ BlockSize.x, (WindowWidth + BlockSize.y - 1)/ BlockSize.y,1);
+
 }
 
 void display(void) 
@@ -129,10 +155,7 @@ void display(void)
 	stepSizeX = (XMax - XMin)/((float)WindowWidth);
 	stepSizeY = (YMax - YMin)/((float)WindowHeight);
 	
-	
-
-	dim3 block(16,16);
-	dim3 grid((WindowWidth+block.x-1)/block.x)
+	juliaKernel<<<GridSize, BlockSize>>>(d_pixels, WindowWidth, WindowHeight, XMin, YMin, stepSizeX, stepSizeY);
 
 	k=0;
 	y = YMin;
@@ -142,7 +165,7 @@ void display(void)
 		while(x < XMax) 
 		{
 			pixels[k] = escapeOrNotColor(x,y);	//Red on or off returned from color
-			pixels[k+1] = 0.0; 	//Green off, small note I left it as this mainly I like the light blue color outside and white on the inside. But decided to left at zeros to avoid being blinded by the brightness.
+			pixels[k+1] = 0.0; 	//Green off
 			pixels[k+2] = 0.0;	//Blue off
 			k=k+3;			//Skip to next pixel (3 float jump)
 			x += stepSizeX;
