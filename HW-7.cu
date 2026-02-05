@@ -49,6 +49,7 @@ void cudaErrorCheck(const char *file, int line)
 		exit(0);
 	}
 }
+#define CUDA_CHECK() cudaErrorCheck(__FILE__, __LINE__)
 
 float escapeOrNotColor (float x, float y) 
 {
@@ -77,16 +78,37 @@ float escapeOrNotColor (float x, float y)
 		return(1.0);
 	}
 }
+//CUDA kernel
+__global__ void juliaKernel(float *pixels,int width, int height,float xmin, float ymin,float stepX, float stepY)
+{
+    int ix = blockIdx.x * blockDim.x + threadIdx.x;
+    int iy = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (ix >= width || iy >= height) return;
+
+    x = xmin + ix * stepX;
+    y = ymin + iy * stepY;
+
+    float color = escapeOrNotColor(x, y);
+
+    int index = (iy * width + ix) * 3;
+    pixels[index]     = color; // Red
+    pixels[index + 1] = 0.0;  // Green
+    pixels[index + 2] = 0.0;  // Blue
+}
 
 void display(void) 
 { 
 	float *pixels; 
+	float *d_pixels;
 	float x, y, stepSizeX, stepSizeY;
 	int k;
 	
 	//We need the 3 because each pixel has a red, green, and blue value.
 	pixels = (float *)malloc(WindowWidth*WindowHeight*3*sizeof(float));
-	
+	cudaMalloc((void **)&d_pixels, size);
+    CUDA_CHECK();
+
 	stepSizeX = (XMax - XMin)/((float)WindowWidth);
 	stepSizeY = (YMax - YMin)/((float)WindowHeight);
 	
@@ -105,10 +127,17 @@ void display(void)
 		}
 		y += stepSizeY;
 	}
+CUDA_CHECK();
+
+    cudaMemcpy(pixels, d_pixels, size, cudaMemcpyDeviceToHost);
+    CUDA_CHECK();
 
 	//Putting pixels on the screen.
 	glDrawPixels(WindowWidth, WindowHeight, GL_RGB, GL_FLOAT, pixels); 
 	glFlush(); 
+
+	cudaFree(d_pixels);
+    free(pixels);
 }
 
 int main(int argc, char** argv)
