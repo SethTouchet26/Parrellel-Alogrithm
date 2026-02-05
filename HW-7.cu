@@ -122,8 +122,8 @@ void display(void)
 		while(x < XMax) 
 		{
 			pixels[k] = escapeOrNotColor(x,y);	//Red on or off returned from color
-			pixels[k+1] = 10.0; 	//Green off, small note I left it as this mainly I like the light blue color
-			pixels[k+2] = 20.0;	//Blue off
+			pixels[k+1] = 0.0; 	//Green off, small note I left it as this mainly I like the light blue color outside and white on the inside. But decided to left at zeros to avoid being blinded by the brightness.
+			pixels[k+2] = 0.0;	//Blue off
 			k=k+3;			//Skip to next pixel (3 float jump)
 			x += stepSizeX;
 		}
