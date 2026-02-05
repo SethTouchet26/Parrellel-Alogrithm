@@ -173,7 +173,7 @@ void display(void)
 		y += stepSizeY;
 	}
 	
-
+	cudaDeviceSynchronize();
     cudaMemcpy(pixels, d_pixels, size, cudaMemcpyDeviceToHost);
     CUDA_CHECK();
 
