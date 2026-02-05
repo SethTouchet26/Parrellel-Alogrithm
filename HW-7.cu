@@ -28,6 +28,7 @@
 // Global variables
 unsigned int WindowWidth = 1024;
 unsigned int WindowHeight = 1024;
+// add the blocksize and gridsize
 
 float XMin = -2.0;
 float XMax =  2.0;
@@ -51,8 +52,12 @@ void cudaErrorCheck(const char *file, int line)
 }
 #define CUDA_CHECK() cudaErrorCheck(__FILE__, __LINE__)
 
-__host__ __device__ float escapeOrNotColor (float x, float y) // just to be sure the CUDA does not freak out with escapeOrNotColor parts of the code
+__device__ float escapeOrNotColor (float x, float y) // just to be sure the CUDA does not freak out with escapeOrNotColor parts of the code
 {
+	//void setup
+	//{blocksize inputs
+	//gridsize inputs}
+
 	float mag,tempX;
 	int count;
 	
@@ -129,7 +134,7 @@ void display(void)
 		}
 		y += stepSizeY;
 	}
-	cudaMemcpy(d_pixels, pixels, size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_pixels, pixels, size, cudaMemcpyHostToDevice); // change to sync
 	CUDA_CHECK();
 
     cudaMemcpy(pixels, d_pixels, size, cudaMemcpyDeviceToHost);
