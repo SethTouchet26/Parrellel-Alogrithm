@@ -28,14 +28,19 @@
 // Global variables
 unsigned int WindowWidth = 1024;
 unsigned int WindowHeight = 1024;
-dim3 BlockSize;
-dim3 GridSize;
+dim3 BlockSize(16,16,1);
+dim3 GridSize((WindowWidth + BlockSize.x-1)/ BlockSize.x, (WindowHeight + BlockSize.y - 1)/ BlockSize.y,1);
 // add the blocksize and gridsize
 
 float XMin = -2.0;
 float XMax =  2.0;
 float YMin = -2.0;
 float YMax =  2.0;
+
+
+
+float *gpuPixels = NULL;
+int gpuIndex = 0;
 
 // Function prototypes
 void cudaErrorCheck(const char*, int);
@@ -53,8 +58,16 @@ void cudaErrorCheck(const char *file, int line)
 	}
 }
 #define CUDA_CHECK() cudaErrorCheck(__FILE__, __LINE__)
+
 float escapeOrNotColor(float x, float y)
 
+{
+	float value = gpuPixels[gpuIndex];
+	gpuIndex++;
+	return value;
+}
+
+__device__ float escapeDevice(float x, float y) // just to be sure its for CUDA 
 {
 	float mag,tempX;
 	int count;
@@ -68,7 +81,7 @@ float escapeOrNotColor(float x, float y)
 	{	
 		tempX = x; //We will be changing the x but we need its old value to find y.
 		x = x*x - y*y + A;
-		y = (2.0 * tempX * y) + B;
+		y = (2.0f * tempX * y) + B;
 		mag = sqrt(x*x + y*y);
 		count++;
 	}
@@ -79,34 +92,6 @@ float escapeOrNotColor(float x, float y)
 	else
 	{
 		return(1.0f);
-	}
-}
-
-__device__ float escapeOrNotColorGPU(float x, float y) // just to be sure its for CUDA 
-{
-	float mag,tempX;
-	int count;
-	
-	int maxCount = MAXITERATIONS;
-	float maxMag = MAXMAG;
-	
-	count = 0;
-	mag = sqrt(x*x + y*y);;
-	while (mag < maxMag && count < maxCount) 
-	{	
-		tempX = x; //We will be changing the x but we need its old value to find y.
-		x = x*x - y*y + A;
-		y = (2.0 * tempX * y) + B;
-		mag = sqrt(x*x + y*y);
-		count++;
-	}
-	if(count < maxCount) 
-	{
-		return(0.0);
-	}
-	else
-	{
-		return(1.0);
 	}
 }
 //CUDA kernel
@@ -121,22 +106,13 @@ __global__ void juliaKernel(float *pixels,int width, int height,float xmin, floa
     float x = xmin + ix * stepX;
     float y = ymin + iy * stepY;
 
-    float color = escapeOrNotColorGPU(x, y);
+    float color = escapeDevice(x, y);
     
     pixels[index]     = color; // Red
     pixels[index + 1] = 0.0f;  // Green
     pixels[index + 2] = 0.0f;  // Blue
 }
 
-void setUpDevice(void)
-{
-	cudaSetDevice(0);
-	CUDA_CHECK();
-
-	BlockSize = dim3(16,16,1);
-	GridSize = dim3((WindowWidth + BlockSize.x - 1)/ BlockSize.x, (WindowWidth + BlockSize.y - 1)/ BlockSize.y,1);
-
-}
 
 void display(void) 
 { 
@@ -148,6 +124,7 @@ void display(void)
 	//We need the 3 because each pixel has a red, green, and blue value.
 	int size = WindowWidth*WindowHeight*3*sizeof(float);
 	pixels = (float *)malloc(size);
+	gpuPixels = (float *)malloc(size);
 
 	cudaMalloc((void **)&d_pixels, size); //to check with the malloc and make sure nothing goes wrong when intregrating with the CUDA additions
     CUDA_CHECK();
@@ -157,6 +134,10 @@ void display(void)
 	
 	juliaKernel<<<GridSize, BlockSize>>>(d_pixels, WindowWidth, WindowHeight, XMin, YMin, stepSizeX, stepSizeY);
 
+	cudaDeviceSynchronize();
+	cudaMemcpy(gpuPixels, d_pixels, size, cudaMemcpyDeviceToHost);
+	gpuIndex = 0;
+
 	k=0;
 	y = YMin;
 	while(y < YMax) 
@@ -165,8 +146,8 @@ void display(void)
 		while(x < XMax) 
 		{
 			pixels[k] = escapeOrNotColor(x,y);	//Red on or off returned from color
-			pixels[k+1] = 0.0; 	//Green off
-			pixels[k+2] = 0.0;	//Blue off
+			pixels[k+1] = 0.0f; 	//Green off
+			pixels[k+2] = 0.0f;	//Blue off
 			k=k+3;			//Skip to next pixel (3 float jump)
 			x += stepSizeX;
 		}
@@ -183,6 +164,7 @@ void display(void)
 
 	cudaFree(d_pixels); //to clear the device pixels and the pixels on screen
     free(pixels);
+	free(gpuPixels);
 }
 
 int main(int argc, char** argv)
