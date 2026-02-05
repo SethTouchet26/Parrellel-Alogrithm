@@ -51,7 +51,7 @@ void cudaErrorCheck(const char *file, int line)
 }
 #define CUDA_CHECK() cudaErrorCheck(__FILE__, __LINE__)
 
-__host__ __device__ float escapeOrNotColor (float x, float y) 
+__host__ __device__ float escapeOrNotColor (float x, float y) // just to be sure the CUDA does not freak out with escapeOrNotColor parts of the code
 {
 	float mag,tempX;
 	int count;
@@ -79,7 +79,7 @@ __host__ __device__ float escapeOrNotColor (float x, float y)
 	}
 }
 //CUDA kernel
-__global__ void juliaKernel(float *pixels,int width, int height,float xmin, float ymin,float stepX, float stepY)
+__global__ void juliaKernel(float *pixels,int width, int height,float xmin, float ymin,float stepX, float stepY) //Just so CUDA does not freak out (had some problems with the escapeorNotColor part of the code)
 {
     int ix = blockIdx.x * blockDim.x + threadIdx.x;
     int iy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -108,7 +108,7 @@ void display(void)
 	int size = WindowWidth*WindowHeight*3*sizeof(float);
 	pixels = (float *)malloc(size);
 
-	cudaMalloc((void **)&d_pixels, size);
+	cudaMalloc((void **)&d_pixels, size); //to check with the malloc and make sure nothing goes wrong when intregrating with the CUDA additions
     CUDA_CHECK();
 
 	stepSizeX = (XMax - XMin)/((float)WindowWidth);
@@ -122,8 +122,8 @@ void display(void)
 		while(x < XMax) 
 		{
 			pixels[k] = escapeOrNotColor(x,y);	//Red on or off returned from color
-			pixels[k+1] = 0.0; 	//Green off
-			pixels[k+2] = 0.0;	//Blue off
+			pixels[k+1] = 10.0; 	//Green off, small note I left it as this mainly I like the light blue color
+			pixels[k+2] = 20.0;	//Blue off
 			k=k+3;			//Skip to next pixel (3 float jump)
 			x += stepSizeX;
 		}
@@ -139,7 +139,7 @@ void display(void)
 	glDrawPixels(WindowWidth, WindowHeight, GL_RGB, GL_FLOAT, pixels); 
 	glFlush(); 
 
-	cudaFree(d_pixels);
+	cudaFree(d_pixels); //to clear the device pixels and the pixels on screen
     free(pixels);
 }
 
@@ -148,7 +148,7 @@ int main(int argc, char** argv)
    	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
    	glutInitWindowSize(WindowWidth, WindowHeight);
-	glutCreateWindow("Fractals--Man--Fractals");
+	glutCreateWindow("Fractals--with--Julia");
    	glutDisplayFunc(display);
    	glutMainLoop();
 }
