@@ -36,7 +36,7 @@ float YMax =  2.0;
 
 // Function prototypes
 void cudaErrorCheck(const char*, int);
-float escapeOrNotColor(float, float);
+
 
 void cudaErrorCheck(const char *file, int line)
 {
@@ -51,7 +51,7 @@ void cudaErrorCheck(const char *file, int line)
 }
 #define CUDA_CHECK() cudaErrorCheck(__FILE__, __LINE__)
 
-float escapeOrNotColor (float x, float y) 
+__host__ __device__ float escapeOrNotColor (float x, float y) 
 {
 	float mag,tempX;
 	int count;
@@ -86,12 +86,12 @@ __global__ void juliaKernel(float *pixels,int width, int height,float xmin, floa
 
     if (ix >= width || iy >= height) return;
 
-    x = xmin + ix * stepX;
-    y = ymin + iy * stepY;
+	int index = (iy * width + ix) * 3;
+    float x = xmin + ix * stepX;
+    float y = ymin + iy * stepY;
 
     float color = escapeOrNotColor(x, y);
-
-    int index = (iy * width + ix) * 3;
+    
     pixels[index]     = color; // Red
     pixels[index + 1] = 0.0;  // Green
     pixels[index + 2] = 0.0;  // Blue
@@ -105,7 +105,9 @@ void display(void)
 	int k;
 	
 	//We need the 3 because each pixel has a red, green, and blue value.
-	pixels = (float *)malloc(WindowWidth*WindowHeight*3*sizeof(float));
+	int size = WindowWidth*WindowHeight*3*sizeof(float);
+	pixels = (float *)malloc(size);
+
 	cudaMalloc((void **)&d_pixels, size);
     CUDA_CHECK();
 
