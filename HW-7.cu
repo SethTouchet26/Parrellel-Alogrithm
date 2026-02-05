@@ -67,7 +67,7 @@ float escapeOrNotColor(float x, float y)
 	return value;
 }
 
-__device__ float escapeDevice(float x, float y) // just to be sure its for CUDA 
+__device__ float escapeDevice(float x, float y) // Now it should be just the GPU doing most of the work here.
 {
 	float mag,tempX;
 	int count;
@@ -95,7 +95,7 @@ __device__ float escapeDevice(float x, float y) // just to be sure its for CUDA
 	}
 }
 //CUDA kernel
-__global__ void juliaKernel(float *pixels,int width, int height,float xmin, float ymin,float stepX, float stepY) //Just so CUDA does not freak out (had some problems with the escapeorNotColor part of the code)
+__global__ void juliaKernel(float *pixels,int width, int height,float xmin, float ymin,float stepX, float stepY) // Ensuring that the GPU is being used for the juliaKernel
 {
     int ix = blockIdx.x * blockDim.x + threadIdx.x;
     int iy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -114,7 +114,7 @@ __global__ void juliaKernel(float *pixels,int width, int height,float xmin, floa
 }
 
 
-void display(void) 
+void display(void) //The display from the GPU
 { 
 	float *pixels; 
 	float *d_pixels;
