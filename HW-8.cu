@@ -1,4 +1,5 @@
 
+
 // Name: Seth Touchet
 // Not simple Julia Set on the GPU
 // nvcc G_JuliaExtended.cu -o temp -lglut -lGL
@@ -40,7 +41,7 @@ float YMax =  2.0;
 
 // Function prototypes
 void cudaErrorCheck(const char*, int);
-__global__ void colorPixels(float, float, float, float, float);
+__global__ void colorPixels(float, int, int, float, float, float, float);
 
 void cudaErrorCheck(const char *file, int line)
 {
@@ -54,7 +55,7 @@ void cudaErrorCheck(const char *file, int line)
 	}
 }
 // CUDA Kernel for the GPU portion
-__global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, float dy) 
+__global__ void colorPixels(float *pixels, int width, int height, float xMin, float yMin, float dx, float dy) 
 {
 	float x,y,mag,tempX;
 	int count, id;
@@ -66,7 +67,7 @@ __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, flo
 	int py = blockIdx.y * blockDim.y + threadIdx.y;
 
 	if (px >= width || py >= height) return;
-	
+
 	//Getting the offset into the pixel buffer. 
 	//We need the 3 because each pixel has a red, green, and blue value.
 	id = 3*(threadIdx.x + blockDim.x * blockIdx.x);
@@ -120,11 +121,7 @@ void display(void) //GPU display
 	stepSizeX = (XMax - XMin)/((float)WindowWidth);
 	stepSizeY = (YMax - YMin)/((float)WindowHeight);
 
-	dim3 blockSize(16, 16, 1);
-    dim3 gridSize(
-        (WindowWidth  + blockSize.x - 1) / blockSize.x,
-        (WindowHeight + blockSize.y - 1) / blockSize.y, 1
-    );
+	
 
 	//Threads in a block
 	if(WindowWidth > 1024)
@@ -134,7 +131,7 @@ void display(void) //GPU display
 	 	printf("Good Bye and have a nice day!\n");
 	 	exit(0);
 	}
-	blockSize.x = 1024; //WindowWidth;
+	blockSize.x = WindowWidth;
 	blockSize.y = 1;
 	blockSize.z = 1;
 	
@@ -144,7 +141,7 @@ void display(void) //GPU display
 	gridSize.z = 1;
 
 
-	colorPixels<<<gridSize, blockSize>>>(pixelsGPU, XMin, YMin, stepSizeX, stepSizeY);
+	colorPixels<<<gridSize, blockSize>>>(pixelsGPU, WindowWidth, WindowHeight, XMin, YMin, stepSizeX, stepSizeY);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	//Copying the pixels that we just colored back to the CPU.
