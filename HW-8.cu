@@ -53,7 +53,7 @@ void cudaErrorCheck(const char *file, int line)
 		exit(0);
 	}
 }
-// CUDA Kernel
+// CUDA Kernel for the GPU portion
 __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, float dy) 
 {
 	float x,y,mag,tempX;
@@ -69,7 +69,7 @@ __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, flo
 	
 	//Getting the offset into the pixel buffer. 
 	//We need the 3 because each pixel has a red, green, and blue value.
-	id = 3*(threadIdx.x + blockDim.x*blockIdx.x);
+	id = 3*(threadIdx.x + blockDim.x * blockIdx.x);
 	
 	//Asigning each thread its x and y value of its pixel.
 	x = xMin + dx*threadIdx.x;
@@ -90,9 +90,9 @@ __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, flo
 	//Setting the red value
 	if(count < maxCount) //It excaped
 	{
-		pixels[id]     = t;
-		pixels[id + 1] = 0.5 * (1.0 - t);
-		pixels[id + 2] = 1.0 - t;
+		pixels[id]     = 0.0;
+		pixels[id + 1] = 0.0;
+		pixels[id + 2] = 0.0;
 	}
 	else //It Stuck around
 	{
@@ -106,7 +106,7 @@ __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, flo
 	pixels[id+2] = 0.0;
 }
 
-void display(void) 
+void display(void) //GPU display
 { 
 	dim3 blockSize, gridSize;
 	float *pixelsCPU, *pixelsGPU; 
@@ -119,7 +119,13 @@ void display(void)
 	
 	stepSizeX = (XMax - XMin)/((float)WindowWidth);
 	stepSizeY = (YMax - YMin)/((float)WindowHeight);
-	
+
+	dim3 blockSize(16, 16, 1);
+    dim3 gridSize(
+        (WindowWidth  + blockSize.x - 1) / blockSize.x,
+        (WindowHeight + blockSize.y - 1) / blockSize.y, 1
+    );
+
 	//Threads in a block
 	if(WindowWidth > 1024)
 	{
@@ -158,7 +164,7 @@ int main(int argc, char** argv)
    	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
    	glutInitWindowSize(WindowWidth, WindowHeight);
-	glutCreateWindow("Fractals--Hope It--Works");
+	glutCreateWindow("Fractals--Hope--It--Works");
    	glutDisplayFunc(display);
    	glutMainLoop();
 }
