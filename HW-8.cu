@@ -70,7 +70,7 @@ __global__ void colorPixels(float *pixels, int width, int height, float xMin, fl
 
 	//Getting the offset into the pixel buffer. 
 	//We need the 3 because each pixel has a red, green, and blue value.
-	id = 3*(threadIdx.x + blockDim.x * blockIdx.x);
+	id = 3*(px + width * py);
 	
 	//Asigning each thread its x and y value of its pixel.
 	x = xMin + dx * px;
@@ -91,9 +91,9 @@ __global__ void colorPixels(float *pixels, int width, int height, float xMin, fl
 	//Setting the red value
 	if(count < maxCount) //It escaped
 	{
-		//float t =(float)count / maxCount;
+		float t =(float)count / maxCount;
 
-		pixels[id]     = 0.0f; //This is to see about the various colors that would be displayed on the monitors from the GPU work
+		pixels[id]     = t; //This is to see about the various colors that would be displayed on the monitors from the GPU work
 		pixels[id + 1] = 0.0f;
 		pixels[id + 2] = 0.0f;
 	}
@@ -104,9 +104,9 @@ __global__ void colorPixels(float *pixels, int width, int height, float xMin, fl
 		pixels[id + 2] = 0.0f;
 	}
 	//Setting the green
-	pixels[id+1] = 0.0f;
+	//pixels[id+1] = 0.0f;
 	//Setting the blue 
-	pixels[id+2] = 0.0f;
+	//pixels[id+2] = 0.0f;
 }
 
 void display(void) //GPU display
@@ -144,6 +144,7 @@ void display(void) //GPU display
 
 
 	colorPixels<<<gridSize, blockSize>>>(pixelsGPU, WindowWidth, WindowHeight, XMin, YMin, stepSizeX, stepSizeY);
+	cudaDeviceSynchronize();
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	//Copying the pixels that we just colored back to the CPU.
