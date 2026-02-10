@@ -53,7 +53,7 @@ void cudaErrorCheck(const char *file, int line)
 		exit(0);
 	}
 }
-
+// CUDA Kernel
 __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, float dy) 
 {
 	float x,y,mag,tempX;
@@ -61,7 +61,11 @@ __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, flo
 	
 	int maxCount = MAXITERATIONS;
 	float maxMag = MAXMAG;
-	
+
+	int px = blockIdx.x * blockDim.x + threadIdx.x;
+	int py = blockIdx.y * blockDim.y + threadIdx.y;
+
+	if (px >= width || py >= height) return;
 	
 	//Getting the offset into the pixel buffer. 
 	//We need the 3 because each pixel has a red, green, and blue value.
@@ -86,9 +90,9 @@ __global__ void colorPixels(float *pixels, float xMin, float yMin, float dx, flo
 	//Setting the red value
 	if(count < maxCount) //It excaped
 	{
-		pixels[id]     = 0.0;
-		pixels[id + 1] = 0.0;
-		pixels[id + 2] = 0.0;
+		pixels[id]     = t;
+		pixels[id + 1] = 0.5 * (1.0 - t);
+		pixels[id + 2] = 1.0 - t;
 	}
 	else //It Stuck around
 	{
@@ -132,7 +136,8 @@ void display(void)
 	gridSize.x = WindowHeight;
 	gridSize.y = 1;
 	gridSize.z = 1;
-	
+
+
 	colorPixels<<<gridSize, blockSize>>>(pixelsGPU, XMin, YMin, stepSizeX, stepSizeY);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
@@ -143,6 +148,9 @@ void display(void)
 	//Putting pixels on the screen.
 	glDrawPixels(WindowWidth, WindowHeight, GL_RGB, GL_FLOAT, pixelsCPU); 
 	glFlush(); 
+
+	cudaFree(pixelsGPU);
+	free(pixelsCPU);
 }
 
 int main(int argc, char** argv)
@@ -150,7 +158,7 @@ int main(int argc, char** argv)
    	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
    	glutInitWindowSize(WindowWidth, WindowHeight);
-	glutCreateWindow("Fractals--Man--Fractals");
+	glutCreateWindow("Fractals--Hope It--Works");
    	glutDisplayFunc(display);
    	glutMainLoop();
 }
