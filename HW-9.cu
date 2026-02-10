@@ -122,7 +122,34 @@ void dotProductCPU(float *a, float *b, float *C_CPU, int n)
 // This is the kernel. It is the function that will run on the GPU.
 __global__ void dotProductGPU(float *a, float *b, float *C_GPU, int n)
 {
-	
+	int id = threadIdx.x; // State the id for threadidx
+
+	if (id < n)
+	{
+		C_GPU[id] = a[id] * b[id]; // Ensure that the C_GPU is the resulted multiple of 'a' and 'b'
+	}
+	else
+	{
+		C_GPU[id] = 0.0f;
+	}
+
+	__syncthreads(); // This must be here to make sure that the threads know what is done
+
+	int stride = 1;
+
+	while (stride < blockDim.x) // A 'for loop' works as well, but prefer working with 'while loops'
+	{
+		if (id % (2 * stride) == 0)
+		{
+			if (id + stride < blockDim.x)
+			{
+				C_GPU[id] += C_GPU[id + stride];
+			}
+		}
+		__syncthreads(); // This MUST be here to make sure that the threads know what is done
+
+		stride = stride * 2;
+	}
 }
 
 // Checking to see if anything went wrong in the vector addition.
