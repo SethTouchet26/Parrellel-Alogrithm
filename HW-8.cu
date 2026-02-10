@@ -73,8 +73,8 @@ __global__ void colorPixels(float *pixels, int width, int height, float xMin, fl
 	id = 3*(threadIdx.x + blockDim.x * blockIdx.x);
 	
 	//Asigning each thread its x and y value of its pixel.
-	x = xMin + dx*threadIdx.x;
-	y = yMin + dy*blockIdx.x;
+	x = xMin + dx * px;
+	y = yMin + dy * py;
 	
 	count = 0;
 	mag = sqrt(x*x + y*y);;
@@ -89,22 +89,24 @@ __global__ void colorPixels(float *pixels, int width, int height, float xMin, fl
 	}
 	
 	//Setting the red value
-	if(count < maxCount) //It excaped
+	if(count < maxCount) //It escaped
 	{
-		pixels[id]     = 0.0;
-		pixels[id + 1] = 0.0;
-		pixels[id + 2] = 0.0;
+		//float t =(float)count / maxCount;
+
+		pixels[id]     = 0.0f; //This is to see about the various colors that would be displayed on the monitors from the GPU work
+		pixels[id + 1] = 0.0f;
+		pixels[id + 2] = 0.0f;
 	}
 	else //It Stuck around
 	{
-		pixels[id]     = 1.0;
-		pixels[id + 1] = 0.0;
-		pixels[id + 2] = 0.0;
+		pixels[id]     = 1.0f;
+		pixels[id + 1] = 0.0f;
+		pixels[id + 2] = 0.0f;
 	}
 	//Setting the green
-	pixels[id+1] = 0.0;
+	pixels[id+1] = 0.0f;
 	//Setting the blue 
-	pixels[id+2] = 0.0;
+	pixels[id+2] = 0.0f;
 }
 
 void display(void) //GPU display
@@ -131,13 +133,13 @@ void display(void) //GPU display
 	 	printf("Good Bye and have a nice day!\n");
 	 	exit(0);
 	}
-	blockSize.x = WindowWidth;
-	blockSize.y = 1;
+	blockSize.x = 16;
+	blockSize.y = 16;
 	blockSize.z = 1;
 	
 	//Blocks in a grid
-	gridSize.x = WindowHeight;
-	gridSize.y = 1;
+	gridSize.x = (WindowWidth + blockSize.x - 1) / blockSize.x;
+	gridSize.y = (WindowHeight+ blockSize.y - 1) / blockSize.y;
 	gridSize.z = 1;
 
 
@@ -145,7 +147,7 @@ void display(void) //GPU display
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	//Copying the pixels that we just colored back to the CPU.
-	cudaMemcpyAsync(pixelsCPU, pixelsGPU, WindowWidth*WindowHeight*3*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpy(pixelsCPU, pixelsGPU, WindowWidth*WindowHeight*3*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	//Putting pixels on the screen.
