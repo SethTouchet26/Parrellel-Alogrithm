@@ -91,15 +91,15 @@ __global__ void colorPixels(float *pixels, int width, int height, float xMin, fl
 	//Setting the red value
 	if(count < maxCount) //It escaped
 	{
-		float t =(float)count / maxCount;
+		float t =(float)count / maxCount; //This is to see about the various colors that would be displayed on the monitors from the GPU work
 
-		pixels[id]     = t; //This is to see about the various colors that would be displayed on the monitors from the GPU work
-		pixels[id + 1] = 0.0f;
-		pixels[id + 2] = 0.0f;
+		pixels[id]     = 0.4f + 0.4f * sin(3.0f + t*3.0f); // Focuses on Red
+		pixels[id + 1] = 0.4f + 0.4f * sin(1.0f + t*4.0f); // Focuses on Green
+		pixels[id + 2] = 0.6f + 0.4f * sin(2.0f + t*5.0f); // Focuses on Blue
 	}
 	else //It Stuck around
 	{
-		pixels[id]     = 1.0f;
+		pixels[id]     = 0.0f;
 		pixels[id + 1] = 0.0f;
 		pixels[id + 2] = 0.0f;
 	}
