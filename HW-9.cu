@@ -263,4 +263,4 @@ int main()
 	printf("\n\n");
 	
 	return(0);
-}
+} // The results for the compilier for the CPU was 4 microseconds and for the GPU was 156 microseconds, along with the percent error being about 0.000155.
