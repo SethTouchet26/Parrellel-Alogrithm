@@ -133,7 +133,7 @@ __global__ void dotProductGPU(float *a, float *b, float *C_GPU, int n)
 		C_GPU[id] = 0.0f;
 	}
 
-	__syncthreads(); // This must be here to make sure that the threads know what is done
+	__syncthreads(); // This tells threadindex to wait until the remaining taskers are done to continue
 
 	int stride = 1;
 
@@ -146,7 +146,7 @@ __global__ void dotProductGPU(float *a, float *b, float *C_GPU, int n)
 				C_GPU[id] += C_GPU[id + stride];
 			}
 		}
-		__syncthreads(); // This MUST be here to make sure that the threads know what is done
+		__syncthreads(); // Apply the same ensurance of waiting until the rest are done
 
 		stride = stride * 2;
 	}
