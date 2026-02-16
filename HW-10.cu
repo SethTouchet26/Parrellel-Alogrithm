@@ -1,5 +1,4 @@
-
-// Name:
+// Name: Seth Touchet
 // Vector Dot product on many block and useing shared memory
 // nvcc I_DotProductManyBlocksSharedMemory.cu -o temp
 /*
@@ -28,7 +27,7 @@
 #include <stdio.h>
 
 // Defines
-#define N 25 // Length of the vector
+#define N 2500 // Length of the vector
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
@@ -66,11 +65,11 @@ void cudaErrorCheck(const char *file, int line)
 // This will be the layout of the parallel space we will be using.
 void setUpDevices()
 {
-	BlockSize.x = 200;
+	BlockSize.x = 256;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = 1;
+	GridSize.x = (N + BlockSize.x -1)/ BlockSize.x;
 	GridSize.y = 1;
 	GridSize.z = 1;
 }
@@ -120,9 +119,16 @@ void dotProductCPU(float *a, float *b, float *C_CPU, int n)
 // It adds vectors a and b on the GPU then stores result in vector c.
 __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 {
+	__shared__ float shareMem{256];
+
 	int id = threadIdx.x;
-	
-	c[id] = a[id] * b[id];
+	int globalId = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if(globalId < n)
+		shared[id] = a[globalId] * b[globalId];
+	else
+		shared[id] = 0.0f;
+
 	__syncthreads();
 		
 	int fold = blockDim.x;
