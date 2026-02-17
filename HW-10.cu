@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 // Defines
-#define N 2500 // Length of the vector
+#define N 240 // Length of the vector
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
@@ -69,7 +69,7 @@ void setUpDevices()
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = (N + BlockSize.x -1)/ BlockSize.x;
+	GridSize.x = (N + BlockSize.x-1)/ BlockSize.x;
 	GridSize.y = 1;
 	GridSize.z = 1;
 }
@@ -119,36 +119,38 @@ void dotProductCPU(float *a, float *b, float *C_CPU, int n)
 // It adds vectors a and b on the GPU then stores result in vector c.
 __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 {
-	__shared__ float shareMem{256];
+	__shared__ float sharedMem[256]; //This is for the Shared memory
 
 	int id = threadIdx.x;
 	int globalId = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if(globalId < n)
-		shared[id] = a[globalId] * b[globalId];
+		sharedMem[id] = a[globalId] * b[globalId]; //This would store the results
 	else
-		shared[id] = 0.0f;
+		sharedMem[id] = 0.0f;
 
-	__syncthreads();
+	__syncthreads(); //Always need to once all of the threads have calculate
 		
 	int fold = blockDim.x;
 	while(1 < fold)
 	{
-		if(fold%2 != 0)
+		if(fold%2 != 0) // 
 		{
 			if(id == 0 && (fold - 1) < n)
 			{
-				c[0] = c[0] + c[fold - 1];
+				sharedMem[0] = sharedMem[0] + sharedMem[fold - 1]; //This would contain the sum fo the entire block
 			}
 			fold = fold - 1;
 		}
 		fold = fold/2;
 		if(id < fold && (id + fold) < n)
 		{
-			c[id] = c[id] + c[id + fold];
+			sharedMem[id] = sharedMem[id] + sharedMem[id + fold];
 		}
 		__syncthreads();
 	}
+	if(id==0)
+	c[blockIdx.x] = sharedMem[0]; //include this to check and to ensure to be allocated, or else the dot product will be wrong
 }
 
 // Checking to see if anything went wrong in the vector addition.
