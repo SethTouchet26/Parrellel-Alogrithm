@@ -80,14 +80,14 @@ void allocateMemory()
 	// Host "CPU" memory.				
 	A_CPU = (float*)malloc(N*sizeof(float));
 	B_CPU = (float*)malloc(N*sizeof(float));
-	C_CPU = (float*)malloc(N*sizeof(float));
+	C_CPU = (float*)malloc(N*sizeof(float)); //could fix this to have N be replace with GridSize.x to have the any N vector
 	
 	// Device "GPU" Memory
 	cudaMalloc(&A_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMalloc(&B_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMalloc(&C_GPU,N*sizeof(float));
+	cudaMalloc(&C_GPU,N*sizeof(float)); //could fix this to have N be replace with GridSize.x to have the any N vector
 	cudaErrorCheck(__FILE__, __LINE__);
 }
 
@@ -273,4 +273,7 @@ int main()
 	printf("\n\n");
 	
 	return(0);
-}
+} /* Results would be CPU was 1 microseconds and GPU was 355 microseconds. But it is only for the limit of 256 
+and in order for the code to not break when N is greater than 256 is to replace the lines in both host CPU
+and host GPU for the "malloc(N*sizeof(float))" into "malloc(GridSize.x*sizeof(float))"
+*/
