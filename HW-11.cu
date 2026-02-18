@@ -1,4 +1,4 @@
-// Name:
+// Name: Seth Touchet
 // Robust Vector Dot product 
 // nvcc J_GeneralDotProductWithAtomics.cu -o temp
 /*
@@ -52,7 +52,7 @@
 
 // Defines
 #define N 100000 // Length of the vector
-#define BLOCK_SIZE 200 // Threads in a block
+#define BLOCK_SIZE 256 // Threads in a block
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
@@ -86,10 +86,60 @@ void cudaErrorCheck(const char *file, int line)
 		exit(0);
 	}
 }
+bool isPowerOfTwo(int x)
+{
+    return (x > 0) && ((x & (x - 1)) == 0);
+}
 
+// Select best GPU and verify atomic float support
+void selectBestDevice()
+{
+    int deviceCount;
+    cudaGetDeviceCount(&deviceCount);
+
+    if (deviceCount == 0)
+    {
+        printf("No CUDA devices found.\n");
+        exit(0);
+    }
+
+    int bestDevice = 0;
+    int bestMajor = 0, bestMinor = 0;
+
+    for (int i = 0; i < deviceCount; i++)
+    {
+        cudaDeviceProp prop;
+        cudaGetDeviceProperties(&prop, i);
+
+        if (prop.major > bestMajor ||
+           (prop.major == bestMajor && prop.minor > bestMinor))
+        {
+            bestMajor = prop.major;
+            bestMinor = prop.minor;
+            bestDevice = i;
+        }
+    }
+
+    cudaSetDevice(bestDevice);
+
+    if (bestMajor < 3)
+    {
+        printf("Compute capability 3.0+ required for atomicAdd(float).\n");
+        exit(0);
+    }
+
+    printf("Using GPU with Compute Capability %d.%d\n",
+            bestMajor, bestMinor);
+}
 // This will be the layout of the parallel space we will be using.
 void setUpDevices()
 {
+	if (!isPowerOfTwo(BLOCK_SIZE))
+    {
+        printf("BLOCK_SIZE must be a power of 2.\n");
+        exit(0);
+    }
+
 	BlockSize.x = BLOCK_SIZE;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
@@ -172,6 +222,8 @@ __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 	}
 	
 	c[blockDim.x*blockIdx.x] = c_sh[0];
+	if (threadIndex == 0)
+        atomicAdd(c, c_sh[0]);
 }
 
 // Checking to see if anything went wrong in the vector addition.
