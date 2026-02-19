@@ -27,7 +27,7 @@
 #include <stdio.h>
 
 // Defines
-#define N 240 // Length of the vector
+#define N 2400 // Length of the vector
 
 // Global variables
 float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
@@ -80,14 +80,14 @@ void allocateMemory()
 	// Host "CPU" memory.				
 	A_CPU = (float*)malloc(N*sizeof(float));
 	B_CPU = (float*)malloc(N*sizeof(float));
-	C_CPU = (float*)malloc(N*sizeof(float)); //could fix this to have N be replace with GridSize.x to have the any N vector
+	C_CPU = (float*)malloc(GridSize.x*sizeof(float)); //could fix this to have N be replace with GridSize.x to have the any N vector
 	
 	// Device "GPU" Memory
 	cudaMalloc(&A_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMalloc(&B_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMalloc(&C_GPU,N*sizeof(float)); //could fix this to have N be replace with GridSize.x to have the any N vector
+	cudaMalloc(&C_GPU,GridSize.x*sizeof(float)); //could fix this to have N be replace with GridSize.x to have the any N vector
 	cudaErrorCheck(__FILE__, __LINE__);
 }
 
@@ -137,20 +137,18 @@ __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 		if(fold%2 != 0) // 
 		{
 			if(id == 0 && (fold - 1) < n)
-			{
-				sharedMem[0] = sharedMem[0] + sharedMem[fold - 1]; //This would contain the sum fo the entire block
-			}
-			fold = fold - 1;
+				sharedMem[0] = sharedMem[0] += sharedMem[fold - 1]; //This would contain the sum fo the entire block
+			
+		}
+			
 		}
 		fold = fold/2;
 		if(id < fold && (id + fold) < n)
-		{
 			sharedMem[id] = sharedMem[id] + sharedMem[id + fold];
-		}
 		__syncthreads();
 	}
 	if(id==0)
-	c[blockIdx.x] = sharedMem[0]; //include this to check and to ensure to be allocated, or else the dot product will be wrong
+		c[blockIdx.x] = sharedMem[0]; //include this to check and to ensure to be allocated, or else the dot product will be wrong
 }
 
 // Checking to see if anything went wrong in the vector addition.
@@ -243,7 +241,7 @@ int main()
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	// Copy Memory from GPU to CPU	
-	cudaMemcpyAsync(C_CPU, C_GPU, 1*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpyAsync(C_CPU, C_GPU, GridSize.x*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	DotGPU = C_CPU[0]; // C_GPU was copied into C_CPU.
 	
