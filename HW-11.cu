@@ -203,38 +203,39 @@ __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 {
 	int threadIndex = threadIdx.x;
 	int vectorIndex = threadIdx.x + blockDim.x*blockIdx.x;
-	__shared__ float c_sh[BLOCK_SIZE];
+	int stride = blockDim.x * gridDim.x;
 
-	if(vectorIndex < n)
-		c_sh[threadIndex] = a[vectorIndex] * b[vectorIndex];
-	else
-		c_sh[threadIndex] = 0.0f;
+	float sum = 0;
+	// Each thread handles multiple elements if N is large
+	for(int i = vectorIndex; i < n; i += stride)
+		sum += a[i] * b[i];
+
+	__shared__ float c_sh[BLOCK_SIZE];
+	c_sh[threadIndex] = sum;
 	__syncthreads();
-	
+
+	// Original fold reduction
 	int fold = blockDim.x;
 	while(1 < fold)
 	{
-		if(fold%2 != 0)
+		if(fold % 2 != 0)
 		{
-			if(threadIndex == 0 && (vectorIndex + fold - 1) < n)
+			if(threadIndex == 0 && threadIndex + fold - 1 < blockDim.x)
 			{
-				c_sh[0] = c_sh[0] + c_sh[0 + fold - 1];
+				c_sh[0] += c_sh[fold - 1];
 			}
 			fold = fold - 1;
 		}
-		fold = fold/2;
-		if(threadIndex < fold && (vectorIndex + fold) < n)
+		fold = fold / 2;
+		if(threadIndex < fold)
 		{
-			c_sh[threadIndex] = c_sh[threadIndex] + c_sh[threadIndex + fold];
-			
+			c_sh[threadIndex] += c_sh[threadIndex + fold];
 		}
 		__syncthreads();
 	}
-	if(threadIndex == 0)
-	{
-		atomicAdd(c, c_sh[0]);// This would ensure that every thread's addition is applied in a reasonable order to get the correct total sum
-	}
 
+	if(threadIndex == 0)
+		atomicAdd(c, c_sh[0]);
 }
 
 // Checking to see if anything went wrong in the vector addition.
