@@ -88,57 +88,52 @@ void cudaErrorCheck(const char *file, int line)
 }
 bool isPowerOfTwo(int x)
 {
-    return (x > 0) && ((x & (x - 1)) == 0);
+	return (x > 0) && ((x & (x - 1)) == 0);
 }
 
-// Select best GPU and verify atomic float support
-void selectBestDevice()
-{
-    int deviceCount;
-    cudaGetDeviceCount(&deviceCount);
-
-    if (deviceCount == 0)
-    {
-        printf("No CUDA devices found.\n");
-        exit(0);
-    }
-
-    int bestDevice = 0;
-    int bestMajor = 0, bestMinor = 0;
-
-    for (int i = 0; i < deviceCount; i++)
-    {
-        cudaDeviceProp prop;
-        cudaGetDeviceProperties(&prop, i);
-
-        if (prop.major > bestMajor ||
-           (prop.major == bestMajor && prop.minor > bestMinor))
-        {
-            bestMajor = prop.major;
-            bestMinor = prop.minor;
-            bestDevice = i;
-        }
-    }
-
-    cudaSetDevice(bestDevice);
-
-    if (bestMajor < 3)
-    {
-        printf("Compute capability 3.0+ required for atomicAdd(float).\n");
-        exit(0);
-    }
-
-    printf("Using GPU with Compute Capability %d.%d\n",
-            bestMajor, bestMinor);
-}
 // This will be the layout of the parallel space we will be using.
 void setUpDevices()
 {
-	if (!isPowerOfTwo(BLOCK_SIZE))
-    {
-        printf("BLOCK_SIZE must be a power of 2.\n");
-        exit(0);
-    }
+	if(!isPowerOfTwo(BLOCK_SIZE))
+	{
+		printf("\n ERROR: BLOCK_SIZE must be a power of 2.\n");
+		exit(0);
+	}
+
+	int deviceCount;
+	cudaGetDeviceCount(&deviceCount);
+
+	if(deviceCount == 0)
+	{
+		printf("\n ERROR: No CUDA devices found.\n");
+		exit(0);
+	}
+
+	int bestDevice = 0;
+	int bestMajor = 0;
+
+	for(int i = 0; i < deviceCount; i++)
+	{
+		cudaDeviceProp prop;
+		cudaGetDeviceProperties(&prop, i);
+
+		if(prop.major > bestMajor)
+		{
+			bestMajor = prop.major;
+			bestDevice = i;
+		}
+	}
+
+	cudaSetDevice(bestDevice);
+
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, bestDevice);
+
+	if(prop.major < 3)
+	{
+		printf("\n ERROR: Compute capability >= 3.0 required for atomicAdd(float).\n");
+		exit(0);
+	}
 
 	BlockSize.x = BLOCK_SIZE;
 	BlockSize.y = 1;
@@ -147,6 +142,18 @@ void setUpDevices()
 	GridSize.x = (N - 1)/BlockSize.x + 1; // This gives us the correct number of blocks.
 	GridSize.y = 1;
 	GridSize.z = 1;
+
+	if(BlockSize.x > prop.maxThreadsPerBlock)
+	{
+		printf("\n ERROR: Block size exceeds device limit.\n");
+		exit(0);
+	}
+
+	if(GridSize.x > prop.maxGridSize[0])
+	{
+		printf("\n ERROR: Grid size exceeds device limit.\n");
+		exit(0);
+	}
 }
 
 // Allocating the memory we will be using.
@@ -155,14 +162,14 @@ void allocateMemory()
 	// Host "CPU" memory.				
 	A_CPU = (float*)malloc(N*sizeof(float));
 	B_CPU = (float*)malloc(N*sizeof(float));
-	C_CPU = (float*)malloc(N*sizeof(float));
+	C_CPU = (float*)malloc(sizeof(float)); // changing this by removing N so a single float for GPU atomic sum
 	
 	// Device "GPU" Memory
 	cudaMalloc(&A_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMalloc(&B_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMalloc(&C_GPU,N*sizeof(float));
+	cudaMalloc(&C_GPU,sizeof(float)); // must be the same as CPU
 	cudaErrorCheck(__FILE__, __LINE__);
 }
 
@@ -197,8 +204,11 @@ __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 	int threadIndex = threadIdx.x;
 	int vectorIndex = threadIdx.x + blockDim.x*blockIdx.x;
 	__shared__ float c_sh[BLOCK_SIZE];
-	
-	c_sh[threadIndex] = (a[vectorIndex] * b[vectorIndex]);
+
+	if(vectorIndex < n)
+		c_sh[threadIndex] = a[vectorIndex] * b[vectorIndex];
+	else
+		c_sh[threadIndex] = 0.0f;
 	__syncthreads();
 	
 	int fold = blockDim.x;
@@ -220,10 +230,12 @@ __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 		}
 		__syncthreads();
 	}
-	
+	if(threadIndex == 0)
+	{
+		atomicAdd(c, c_sh[0]);
+	}
+
 	c[blockDim.x*blockIdx.x] = c_sh[0];
-	if (threadIndex == 0)
-        atomicAdd(c, c_sh[0]);
 }
 
 // Checking to see if anything went wrong in the vector addition.
@@ -296,6 +308,7 @@ int main()
 	timeCPU = elaspedTime(start, end);
 	
 	// Adding on the GPU
+	cudaMemset(C_GPU, 0, sizeof(float));
 	gettimeofday(&start, NULL);
 	
 	// Copy Memory from CPU to GPU		
@@ -308,7 +321,7 @@ int main()
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	// Copy Memory from GPU to CPU	
-	cudaMemcpyAsync(C_CPU, C_GPU, N*sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpyAsync(C_CPU, C_GPU, sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	// Making sure the GPU and CPU wiat until each other are at the same place.
