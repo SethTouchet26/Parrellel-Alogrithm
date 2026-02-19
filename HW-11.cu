@@ -51,7 +51,7 @@
 #include <stdio.h>
 
 // Defines
-#define N 100000 // Length of the vector
+#define N 10000000 // Length of the vector
 #define BLOCK_SIZE 256 // Threads in a block
 
 // Global variables
@@ -162,14 +162,14 @@ void allocateMemory()
 	// Host "CPU" memory.				
 	A_CPU = (float*)malloc(N*sizeof(float));
 	B_CPU = (float*)malloc(N*sizeof(float));
-	C_CPU = (float*)malloc(sizeof(float)); // changing this by removing N so a single float for GPU atomic sum
+	C_CPU = (float*)malloc(N*sizeof(float)); // changing this by removing N so a single float for GPU atomic sum
 	
 	// Device "GPU" Memory
 	cudaMalloc(&A_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMalloc(&B_GPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMalloc(&C_GPU,sizeof(float)); // must be the same as CPU
+	cudaMalloc(&C_GPU,N*sizeof(float)); // must be the same as CPU
 	cudaErrorCheck(__FILE__, __LINE__);
 }
 
@@ -232,10 +232,9 @@ __global__ void dotProductGPU(float *a, float *b, float *c, int n)
 	}
 	if(threadIndex == 0)
 	{
-		atomicAdd(c, c_sh[0]);
+		atomicAdd(c, c_sh[0]);// This would ensure that every thread's addition is applied in a reasonable order to get the correct total sum
 	}
 
-	c[blockDim.x*blockIdx.x] = c_sh[0];
 }
 
 // Checking to see if anything went wrong in the vector addition.
@@ -321,7 +320,7 @@ int main()
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	// Copy Memory from GPU to CPU	
-	cudaMemcpyAsync(C_CPU, C_GPU, sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpyAsync(C_CPU, C_GPU, N*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	// Making sure the GPU and CPU wiat until each other are at the same place.
@@ -357,3 +356,6 @@ int main()
 	
 	return(0);
 }
+/*The results of the code was that the CPU was 647 microseconds and GPU was 418 microseconds for N at 100000.
+Additionally, the code would break if N was set in the 10,000,000's
+*/
