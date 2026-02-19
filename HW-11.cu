@@ -307,7 +307,7 @@ int main()
 	timeCPU = elaspedTime(start, end);
 	
 	// Adding on the GPU
-	cudaMemset(C_GPU, 0, sizeof(float));
+	cudaMemset(C_GPU, 0, N*sizeof(float));
 	gettimeofday(&start, NULL);
 	
 	// Copy Memory from CPU to GPU		
@@ -357,5 +357,5 @@ int main()
 	return(0);
 }
 /*The results of the code was that the CPU was 647 microseconds and GPU was 418 microseconds for N at 100000.
-Additionally, the code would break if N was set in the 10,000,000's
+Additionally, the code would break if N was set in the 10,000,000's, likely caused by the GridSize exceeds the GPU limit for 
 */
