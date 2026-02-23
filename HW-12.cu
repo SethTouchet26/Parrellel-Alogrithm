@@ -1,4 +1,3 @@
-
 // Name: Seth Touchet
 // Robust Vector Dot product 
 // nvcc J_GeneralDotProductWithAtomics.cu -o temp
@@ -61,7 +60,7 @@ float *A_GPU, *B_GPU, *C_GPU; //GPU pointers
 float DotCPU, DotGPU;
 dim3 BlockSize; //This variable will hold the Dimensions of your blocks
 dim3 GridSize; //This variable will hold the Dimensions of your grid
-float Tolerance = 0.01;
+float Tolerance = 0.01f;
 int paddedN;
 
 // Function prototypes
@@ -317,13 +316,14 @@ int main()
 	timeCPU = elaspedTime(start, end);
 	
 	// Adding on the GPU
-	cudaMemset(C_GPU, 0, sizeof(float));
 	gettimeofday(&start, NULL);
 	
 	// Copy Memory from CPU to GPU		
 	cudaMemcpy(A_GPU, A_CPU, paddedN*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpy(B_GPU, B_CPU, paddedN*sizeof(float), cudaMemcpyHostToDevice);
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaMemset(C_GPU, 0, sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	dotProductGPU<<<GridSize,BlockSize>>>(A_GPU, B_GPU, C_GPU, N);
