@@ -327,6 +327,7 @@ int main()
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	dotProductGPU<<<GridSize,BlockSize>>>(A_GPU, B_GPU, C_GPU, N);
+	cudaDeviceSynchronize();
 	cudaErrorCheck(__FILE__, __LINE__);
   
 	// Making sure the GPU and CPU wiat until each other are at the same place.
