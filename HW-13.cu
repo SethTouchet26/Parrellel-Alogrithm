@@ -48,6 +48,8 @@ struct sphereStruct
 	float x,y,z; // Sphere center
 };
 
+__constant__ sphereStruct SphereConst[NUMSPHERES];
+
 // Globals variables
 static int Window;
 unsigned int WindowWidth = WINDOWWIDTH;
@@ -113,16 +115,17 @@ __device__ float hit(float pixelx, float pixely, float *dimingValue, sphereStruc
 	float dx = pixelx - sphere.x;  //Distance from ray to sphere center in x direction
 	float dy = pixely - sphere.y;  //Distance from ray to sphere center in y direction
 	float r2 = sphere.radius*sphere.radius;
+
 	if(dx*dx + dy*dy < r2) // if the ray hits the sphere, then we need to find distance
 	{
 		float dz = sqrtf(r2 - dx*dx - dy*dy); // Distance from ray to edge of sphere?
 		*dimingValue = dz/sphere.radius; // n is value between 0 and 1 used for darkening points near edge.
 		return dz + sphere.z; //  Return the distance to be scaled by
 	}
-	return (ZMIN- 1.0); //If the ray doesn't hit anything return a number 1 unit behind the box.
+	return (ZMIN- 1.0f); //If the ray doesn't hit anything return a number 1 unit behind the box.
 }
 
-__global__ void makeSphersBitMap(float *pixels, sphereStruct *sphereInfo)
+__global__ void makeSphersBitMap(float *)
 {
 	float stepSizeX = (XMAX - XMIN)/((float)WINDOWWIDTH - 1);
 	float stepSizeY = (YMAX - YMIN)/((float)WINDOWHEIGHT - 1);
@@ -138,19 +141,21 @@ __global__ void makeSphersBitMap(float *pixels, sphereStruct *sphereInfo)
 	float pixelr = 0.0f;
 	float pixelg = 0.0f;
 	float pixelb = 0.0f;
+
 	float hitValue;
 	float dimingValue;
 	float maxHit = ZMIN -1.0f; // Initializing it to be 1 unit behind the box.
+
 	for(int i = 0; i < NUMSPHERES; i++)
 	{
-		hitValue = hit(pixelx, pixely, &dimingValue, sphereInfo[i]);
+		hitValue = hit(pixelx, pixely, &dimingValue, SphereConst[i]);
 		// do we hit any spheres? If so, how close are we to the center? (i.e. n)
 		if(maxHit < hitValue)
 		{
 			// Setting the RGB value of the sphere but also diming it as it gets close to the side of the sphere.
-			pixelr = sphereInfo[i].r * dimingValue; 	
-			pixelg = sphereInfo[i].g * dimingValue;	
-			pixelb = sphereInfo[i].b * dimingValue; 	
+			pixelr = SphereConst[i].r * dimingValue; 	
+			pixelg = SphereConst[i].g * dimingValue;	
+			pixelb = SphereConst[i].b * dimingValue; 	
 			maxHit = hitValue; // reset maxHit value to be the current closest sphere
 		}
 	}
@@ -180,13 +185,28 @@ void makeRandomSpheres()
 
 void makeBitMap()
 {	
-	cudaMemcpy(SpheresGPU, SpheresCPU, NUMSPHERES*sizeof(sphereStruct), cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(SphereConst, SpheresCPU, NUMSPHERES*sizeof(sphereStruct), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	
-	makeSphersBitMap<<<GridSize, BlockSize>>>(PixelsGPU, SpheresGPU);
+
+	cudaEvent_t start, stop;
+    float elapsedTime;
+
+    cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start);
+	makeSphersBitMap<<<GridSize, BlockSize>>>(PixelsGPU);
 	cudaErrorCheck(__FILE__, __LINE__);
-	
-	cudaMemcpyAsync(PixelsCPU, PixelsGPU, WINDOWWIDTH*WINDOWHEIGHT*3*sizeof(float), cudaMemcpyDeviceToHost);
+
+	cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    cudaEventElapsedTime(&elapsedTime, start, stop);
+    printf("Kernel execution time: %f ms\n", elapsedTime);
+
+	cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
+	cudaMemcpy(PixelsCPU, PixelsGPU, WINDOWWIDTH*WINDOWHEIGHT*3*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	paintScreen();
@@ -210,7 +230,7 @@ void setup()
 	//Allocating memory for the spheres that will create the scene.
 	//This is what you will be changing out for constant memory.
 	SpheresCPU= (sphereStruct*)malloc(NUMSPHERES*sizeof(sphereStruct));
-	cudaMalloc(&SpheresGPU, NUMSPHERES*sizeof(sphereStruct));
+	//cudaMalloc(&SpheresGPU, NUMSPHERES*sizeof(sphereStruct));
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	//Threads in a block
@@ -232,7 +252,7 @@ void setup()
 	
 	// Seeding the random number generator.
 	time_t t;
-	srand((unsigned) time(&t));
+	srand((unsigned) time(NULL));
 }
 
 int main(int argc, char** argv)
