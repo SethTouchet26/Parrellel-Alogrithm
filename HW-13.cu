@@ -56,7 +56,7 @@ unsigned int WindowWidth = WINDOWWIDTH;
 unsigned int WindowHeight = WINDOWHEIGHT;
 dim3 BlockSize, GridSize;
 float *PixelsCPU, *PixelsGPU; 
-sphereStruct *SpheresCPU, /*SpheresGPU*/;
+sphereStruct *SpheresCPU /*SpheresGPU*/;
 
 // Function prototypes
 void cudaErrorCheck(const char *, int);
@@ -255,7 +255,7 @@ void setup()
 	
 	// Seeding the random number generator.
 	time_t t;
-	srand((unsigned) time(NULL));
+	srand((unsigned) time(&t));
 
 	makeRandomSpheres();
 
@@ -270,8 +270,8 @@ int main(int argc, char** argv)
    	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
    	glutInitWindowSize(WINDOWWIDTH, WINDOWHEIGHT);
-	Window = glutCreateWindow("Random Spheres");
+	Window = glutCreateWindow("Random Spheres_I Guess");
 	glutKeyboardFunc(KeyPressed);
    	glutDisplayFunc(display);
    	glutMainLoop();
-}
+} // The kernel execution time was at 0.794272 microseconds.
