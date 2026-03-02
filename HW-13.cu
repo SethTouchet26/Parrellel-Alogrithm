@@ -56,7 +56,7 @@ unsigned int WindowWidth = WINDOWWIDTH;
 unsigned int WindowHeight = WINDOWHEIGHT;
 dim3 BlockSize, GridSize;
 float *PixelsCPU, *PixelsGPU; 
-sphereStruct *SpheresCPU, *SpheresGPU;
+sphereStruct *SpheresCPU, /*SpheresGPU*/;
 
 // Function prototypes
 void cudaErrorCheck(const char *, int);
@@ -64,7 +64,7 @@ void Display();
 void idle();
 void KeyPressed(unsigned char , int , int );
 __device__ float hit(float , float , float *, float , float , float , float );
-__global__ void makeSphersBitMap(float *, sphereStruct *);
+__global__ void makeSphersBitMap(float *);
 void makeRandomSpheres();
 void makeBitMap();
 void paintScreen();
@@ -102,8 +102,8 @@ void KeyPressed(unsigned char key, int x, int y)
 		// Free divice memory.
 		cudaFree(PixelsGPU); 
 		cudaErrorCheck(__FILE__, __LINE__);
-		cudaFree(SpheresGPU); 
-		cudaErrorCheck(__FILE__, __LINE__);
+		/*cudaFree(SpheresGPU); 
+		cudaErrorCheck(__FILE__, __LINE__);*/
 		
 		printf("\nw Good Bye\n");
 		exit(0);
@@ -125,7 +125,8 @@ __device__ float hit(float pixelx, float pixely, float *dimingValue, sphereStruc
 	return (ZMIN- 1.0f); //If the ray doesn't hit anything return a number 1 unit behind the box.
 }
 
-__global__ void makeSphersBitMap(float *)
+// In the kernel
+__global__ void makeSphersBitMap(float *pixels)
 {
 	float stepSizeX = (XMAX - XMIN)/((float)WINDOWWIDTH - 1);
 	float stepSizeY = (YMAX - YMIN)/((float)WINDOWHEIGHT - 1);
@@ -182,18 +183,20 @@ void makeRandomSpheres()
 		SpheresCPU[i].radius = MAXRADIUS*(float)rand()/RAND_MAX;
 	}
 }	
-
+// Render bitmap
 void makeBitMap()
 {	
-	cudaMemcpyToSymbol(SphereConst, SpheresCPU, NUMSPHERES*sizeof(sphereStruct), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
+	/*cudaMemcpyToSymbol(SphereConst, SpheresCPU, NUMSPHERES*sizeof(sphereStruct), cudaMemcpyHostToDevice);
+	cudaErrorCheck(__FILE__, __LINE__);*/
 
 	cudaEvent_t start, stop;
     float elapsedTime;
 
     cudaEventCreate(&start);
 	cudaEventCreate(&stop);
+
 	cudaEventRecord(start);
+
 	makeSphersBitMap<<<GridSize, BlockSize>>>(PixelsGPU);
 	cudaErrorCheck(__FILE__, __LINE__);
 
@@ -253,12 +256,17 @@ void setup()
 	// Seeding the random number generator.
 	time_t t;
 	srand((unsigned) time(NULL));
+
+	makeRandomSpheres();
+
+    // Copy spheres ONCE to constant memory
+    cudaMemcpyToSymbol(SphereConst, SpheresCPU, NUMSPHERES * sizeof(sphereStruct));
+    cudaErrorCheck(__FILE__, __LINE__);
 }
 
 int main(int argc, char** argv)
 { 
 	setup();
-	makeRandomSpheres();
    	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_SINGLE);
    	glutInitWindowSize(WINDOWWIDTH, WINDOWHEIGHT);
