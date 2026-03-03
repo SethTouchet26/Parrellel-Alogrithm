@@ -1,4 +1,4 @@
-// Name:
+// Name: Seth Touchet
 // Ray tracing
 // nvcc K_RayTracerWithConstantMemory.cu -o temp -lglut -lGL -lm
 
@@ -56,7 +56,7 @@ unsigned int WindowWidth = WINDOWWIDTH;
 unsigned int WindowHeight = WINDOWHEIGHT;
 dim3 BlockSize, GridSize;
 float *PixelsCPU, *PixelsGPU; 
-sphereStruct *SpheresCPU /*SpheresGPU*/;
+sphereStruct *SpheresCPU /*SpheresGPU*/; //transfered to the gpu part of the cdoe
 
 // Function prototypes
 void cudaErrorCheck(const char *, int);
@@ -187,27 +187,27 @@ void makeRandomSpheres()
 void makeBitMap()
 {	
 	/*cudaMemcpyToSymbol(SphereConst, SpheresCPU, NUMSPHERES*sizeof(sphereStruct), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);*/
+	cudaErrorCheck(__FILE__, __LINE__);*/ // Omitted so the code can work in the voidsetup.
 
 	cudaEvent_t start, stop;
     float elapsedTime;
 
     cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+	cudaEventCreate(&stop); // When the GPU work starts and stops (does not measure CPU time)
 
-	cudaEventRecord(start);
+	cudaEventRecord(start); // Tells the GPU when it reach this point, mark the time.
 
 	makeSphersBitMap<<<GridSize, BlockSize>>>(PixelsGPU);
 	cudaErrorCheck(__FILE__, __LINE__);
 
-	cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
+	cudaEventRecord(stop); // Inserts another timestamp aftre the kernel.
+    cudaEventSynchronize(stop); // Must have for CPU and GPU to sync.
 
     cudaEventElapsedTime(&elapsedTime, start, stop);
     printf("Kernel execution time: %f ms\n", elapsedTime);
 
 	cudaEventDestroy(start);
-    cudaEventDestroy(stop);
+    cudaEventDestroy(stop); // Cleans up GPU timing resources.
 
 	cudaMemcpy(PixelsCPU, PixelsGPU, WINDOWWIDTH*WINDOWHEIGHT*3*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -260,7 +260,7 @@ void setup()
 	makeRandomSpheres();
 
     // Copy spheres ONCE to constant memory
-    cudaMemcpyToSymbol(SphereConst, SpheresCPU, NUMSPHERES * sizeof(sphereStruct));
+    cudaMemcpyToSymbol(SphereConst, SpheresCPU, NUMSPHERES * sizeof(sphereStruct)); // This is 
     cudaErrorCheck(__FILE__, __LINE__);
 }
 
