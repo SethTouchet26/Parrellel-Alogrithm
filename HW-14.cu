@@ -1,4 +1,4 @@
-// Name:
+// Name: Seth Touchet
 // Histogram useing atomics in global memory and shared memory.
 // nvcc 12HistogramUseingAtomics.cu -o temp
 
@@ -75,7 +75,8 @@ void SetUpCudaDevices()
 	cudaGetDeviceProperties(&prop, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	BlockSize.x = 222;
+	BlockSize.x = prop.multiProcessorCount * 2;
+
 	if(prop.maxThreadsDim[0] < BlockSize.x)
 	{
 		printf("\n You are trying to create more threads (%d) than your GPU can support on a block (%d).\n Good Bye\n", BlockSize.x, prop.maxThreadsDim[0]);
@@ -100,6 +101,7 @@ void AllocateMemory()
 	//Allocate Device (GPU) Memory
 	cudaMalloc(&RandomNumbersGPU, NUMBER_OF_RANDOM_NUMBERS*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaMalloc(&HistogramGPU, NUMBER_OF_BINS*sizeof(int));
 	cudaErrorCheck(__FILE__, __LINE__);
 
@@ -111,6 +113,7 @@ void AllocateMemory()
 	//Setting the the histograms to zero.
 	cudaMemset(HistogramGPU, 0, NUMBER_OF_BINS*sizeof(int));
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	memset(HistogramCPU, 0, NUMBER_OF_BINS*sizeof(int));
 }
 
@@ -135,13 +138,14 @@ void CleanUp()
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaFree(HistogramGPU);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	free(RandomNumbersCPU); 
 	free(HistogramCPU);
 	free(HistogramCPUTemp);
 	//printf("\n Cleanup Done.");
 }
 
-void fillHistogramCPU()
+void fillHistogramCPU() //CPU histogram
 {
 	float breakPoint;
 	int k, done;
@@ -172,9 +176,42 @@ void fillHistogramCPU()
 }
 
 //This is the kernel. It is the function that will run on the GPU.
+// GPU histogram
 __global__ void fillHistogramGPU(float *randomNumbers, int *hist)
 {
-	
+	 __shared__ int localHist[NUMBER_OF_BINS];
+
+    int tid = threadIdx.x;
+    int globalId = blockIdx.x * blockDim.x + threadIdx.x;
+
+    float stepSize = MAX_RANDOM_NUMBER / (float)NUMBER_OF_BINS;
+
+    // Initialize shared histogram
+    if(tid < NUMBER_OF_BINS)
+        localHist[tid] = 0;
+
+    __syncthreads();
+
+    // Process element
+    if(globalId < NUMBER_OF_RANDOM_NUMBERS)
+    {
+        float value = randomNumbers[globalId];
+
+        int bin = (int)(value / stepSize);
+
+        if(bin >= NUMBER_OF_BINS)
+            bin = NUMBER_OF_BINS - 1;
+
+        atomicAdd(&localHist[bin], 1);
+    }
+
+    __syncthreads();
+
+	// Merge into global histogram
+    if(tid < NUMBER_OF_BINS)
+    {
+        atomicAdd(&hist[tid], localHist[tid]);
+    }
 }
 
 int main()
@@ -183,6 +220,7 @@ int main()
 	timeval start, end;
 	
 	long int test = NUMBER_OF_RANDOM_NUMBERS;
+
 	if(2147483647 < test)
 	{
 		printf("\nThe length of your vector is longer than the largest integer value allowed of 2,147,483,647.\n");
@@ -204,24 +242,30 @@ int main()
 	gettimeofday(&end, NULL);
 	time = (end.tv_sec * 1000000 + end.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec);
 	printf("\nTime on CPU = %.15f milliseconds\n", (time/1000.0));
-	
+
+	//GPU run
 	gettimeofday(&start, NULL);
+
 	//Copy Memory from CPU to GPU		
 	cudaMemcpyAsync(RandomNumbersGPU, RandomNumbersCPU, NUMBER_OF_RANDOM_NUMBERS*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	fillHistogramGPU<<<GridSize,BlockSize>>>(RandomNumbersGPU, HistogramGPU);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	//Copy Memory from GPU to CPU	
 	cudaMemcpyAsync(HistogramCPUTemp, HistogramGPU, NUMBER_OF_BINS*sizeof(int), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	gettimeofday(&end, NULL);
+
 	time = (end.tv_sec * 1000000 + end.tv_usec) - (start.tv_sec * 1000000 + start.tv_usec);
 	printf("\nTime on GPU = %.15f milliseconds\n", (time/1000.0));
 	
 	//Check
 	for(int i = 0; i < NUMBER_OF_BINS; i++)
 	{
-		printf("\n Deference in histogram bins %d is %d.", i, abs(HistogramCPUTemp[i] - HistogramCPU[i]));
+		printf("\n Difference in histogram bins %d is %d.", i, abs(HistogramCPUTemp[i] - HistogramCPU[i]));
 	}
 	
 	//You're done so cleanup your mess.
