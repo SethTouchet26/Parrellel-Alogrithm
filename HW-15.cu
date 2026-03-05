@@ -191,7 +191,7 @@ int main()
 	cudaErrorCheck(__FILE__, __LINE__);
 
 	cudaEventSynchronize(StopEvent);
-	cudaErrorChecmyCudaErrorCheckk(__FILE__, __LINE__);
+	cudaErrorCheck(__FILE__, __LINE__);
 
 	cudaEventElapsedTime(&timeEvent, StartEvent, StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -203,4 +203,5 @@ int main()
 	cleanUp();	
 	
 	return(0);
-}
+}/*Results for the Times on the GPU for using pageable memory up = 948.9 milliseconds, page locked memory up = 649.8 milliseconds,
+pageable memory down = 1140.8 milliseconds, and page locked memory down = 617.2 milliseconds*/
