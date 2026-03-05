@@ -273,4 +273,4 @@ int main()
 	
 	printf("\n\n");
 	return(0);
-}
+}// Results are Time on GPU = 2.119 milliseconds, and the Difference in histogram bins 0-9 being zero.
