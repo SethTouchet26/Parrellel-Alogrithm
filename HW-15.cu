@@ -1,4 +1,4 @@
-// Name:
+// Name: Seth Touchet
 // Page-locked memory test
 // nvcc 13PageLockedMemory.cu -o temp
 
@@ -54,6 +54,7 @@ void setUpCudaDevices()
 {
 	cudaEventCreate(&StartEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventCreate(&StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
 }
@@ -69,7 +70,7 @@ void allocateMemory()
 	PageableNumbersOnCPU = (float*)malloc(SIZE*sizeof(float));
 	
 	//Allocate page locked Host (CPU) Memory
-	?????
+	cudaMallocHost((void**)&PageLockedNumbersOnCPU, SIZE*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 }
 
@@ -79,13 +80,15 @@ void cleanUp()
 	cudaFree(NumbersOnGPU); 
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	?????
+	// Free pinned memory
+    cudaFreeHost(PageLockedNumbersOnCPU);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	free(PageableNumbersOnCPU); 
 	
 	cudaEventDestroy(StartEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventDestroy(StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
 }
@@ -112,7 +115,7 @@ void copyPageLockedMemoryUp()
 {
 	for(int i = 0; i < NUMBER_OF_COPIES; i++)
 	{
-		?????
+		cudaMemcpy(NumbersOnGPU, PageLockedNumbersOnCPU, SIZE*sizeof(float), cudaMemcpyHostToDevice);
 		cudaErrorCheck(__FILE__, __LINE__);
 	}
 }
@@ -121,7 +124,7 @@ void copyPageLockedMemoryDown()
 {
 	for(int i = 0; i < NUMBER_OF_COPIES; i++)
 	{
-		?????
+		cudaMemcpy(PageLockedNumbersOnCPU, NumbersOnGPU, SIZE*sizeof(float), cudaMemcpyDeviceToHost);
 		cudaErrorCheck(__FILE__, __LINE__);
 	}
 }
@@ -135,46 +138,64 @@ int main()
 	
 	cudaEventRecord(StartEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	copyPageableMemoryUp();
 	cudaEventRecord(StopEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventSynchronize(StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventElapsedTime(&timeEvent, StartEvent, StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	printf("\n Time on GPU using pageable memory up = %3.1f milliseconds", timeEvent);
 	
 	cudaEventRecord(StartEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	copyPageLockedMemoryUp();
 	cudaEventRecord(StopEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventSynchronize(StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventElapsedTime(&timeEvent, StartEvent, StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	printf("\n Time on GPU using page locked memory up = %3.1f milliseconds", timeEvent);
 	
 	cudaEventRecord(StartEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	copyPageableMemoryDown();
+
 	cudaEventRecord(StopEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventSynchronize(StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventElapsedTime(&timeEvent, StartEvent, StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	printf("\n Time on GPU using pageable memory down = %3.1f milliseconds", timeEvent);
 	
 	cudaEventRecord(StartEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	copyPageLockedMemoryDown();
+
 	cudaEventRecord(StopEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	cudaEventSynchronize(StopEvent);
 	cudaErrorChecmyCudaErrorCheckk(__FILE__, __LINE__);
+
 	cudaEventElapsedTime(&timeEvent, StartEvent, StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
+
 	printf("\n Time on GPU using page locked memory down = %3.1f milliseconds", timeEvent);
 	
 	printf("\n");
