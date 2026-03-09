@@ -50,7 +50,7 @@ void cudaErrorCheck(const char *file, int line)
 }
 
 //This will be the layout of the parallel space we will be using.
-void setUpCudaDevices()
+void setUpCudaDevices() // Creates timing events
 {
 	cudaEventCreate(&StartEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -95,7 +95,7 @@ void cleanUp()
 
 void copyPageableMemoryUp()
 {
-	for(int i = 0; i < NUMBER_OF_COPIES; i++)
+	for(int i = 0; i < NUMBER_OF_COPIES; i++) // This copies CPU to GPU
 	{
 		cudaMemcpy(NumbersOnGPU, PageableNumbersOnCPU, SIZE*sizeof(float), cudaMemcpyHostToDevice);
 		cudaErrorCheck(__FILE__, __LINE__);
@@ -104,7 +104,7 @@ void copyPageableMemoryUp()
 
 void copyPageableMemoryDown()
 {
-	for(int i = 0; i < NUMBER_OF_COPIES; i++)
+	for(int i = 0; i < NUMBER_OF_COPIES; i++) // This copies GPU to CPU
 	{
 		cudaMemcpy(PageableNumbersOnCPU, NumbersOnGPU, SIZE*sizeof(float), cudaMemcpyDeviceToHost);
 		cudaErrorCheck(__FILE__, __LINE__);
