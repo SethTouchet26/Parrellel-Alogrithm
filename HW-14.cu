@@ -127,7 +127,7 @@ void Innitialize()
 	
 	for(int i = 0; i < NUMBER_OF_RANDOM_NUMBERS; i++)
 	{		
-		RandomNumbersCPU[i] = MAX_RANDOM_NUMBER*(float)rand()/RAND_MAX;	
+		RandomNumbersCPU[i] = MAX_RANDOM_NUMBER*(float)rand()/RAND_MAX;	// would be the produces 0 < value < 100
 	}
 }
 
@@ -179,7 +179,7 @@ void fillHistogramCPU() //CPU histogram
 // GPU histogram
 __global__ void fillHistogramGPU(float *randomNumbers, int *hist)
 {
-	 __shared__ int localHist[NUMBER_OF_BINS];
+	 __shared__ int localHist[NUMBER_OF_BINS]; //for each block to have their own histogram
 
     int tid = threadIdx.x;
     int globalId = blockIdx.x * blockDim.x + threadIdx.x;
@@ -187,10 +187,10 @@ __global__ void fillHistogramGPU(float *randomNumbers, int *hist)
     float stepSize = MAX_RANDOM_NUMBER / (float)NUMBER_OF_BINS;
 
     // Initialize shared histogram
-    if(tid < NUMBER_OF_BINS)
+    if(tid < NUMBER_OF_BINS) // only has the first 10 threads initialize bins
         localHist[tid] = 0;
 
-    __syncthreads();
+    __syncthreads(); // always sync
 
     // Process element
     if(globalId < NUMBER_OF_RANDOM_NUMBERS)
@@ -202,7 +202,7 @@ __global__ void fillHistogramGPU(float *randomNumbers, int *hist)
         if(bin >= NUMBER_OF_BINS)
             bin = NUMBER_OF_BINS - 1;
 
-        atomicAdd(&localHist[bin], 1);
+        atomicAdd(&localHist[bin], 1); // so that multiple threads could try to update the same bin simultaneously
     }
 
     __syncthreads();
@@ -210,7 +210,7 @@ __global__ void fillHistogramGPU(float *randomNumbers, int *hist)
 	// Merge into global histogram
     if(tid < NUMBER_OF_BINS)
     {
-        atomicAdd(&hist[tid], localHist[tid]);
+        atomicAdd(&hist[tid], localHist[tid]); //Multiple blocks may update same global bin
     }
 }
 
