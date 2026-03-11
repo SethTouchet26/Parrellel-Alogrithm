@@ -174,10 +174,10 @@ int main()
 	allocateMemory();
 	loadData();
 	
-	cudaEventRecord(StartEvent, 0);
+	cudaEventRecord(StartEvent, 0); // Records the start time.
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	for(int i = 0; i < ENTIRE_DATA_SET; i += DATA_CHUNKS) // (Loop body)
+	for(int i = 0; i < ENTIRE_DATA_SET; i += DATA_CHUNKS) // (Loop body) Processes the  dataset one chunk at a time
 	{
 		cudaMemcpyAsync(A_GPU, A_CPU + i, DATA_CHUNKS*sizeof(float), cudaMemcpyHostToDevice, Stream0);
         cudaErrorCheck(__FILE__, __LINE__);
@@ -195,7 +195,7 @@ int main()
 	// (Synchronize stream) Notice that we have to make the CPU wait until the GPU has finished stream0
 	cudaStreamSynchronize(Stream0); 
 	
-	cudaEventRecord(StopEvent, 0);
+	cudaEventRecord(StopEvent, 0); // Records the stop time.
 	cudaErrorCheck(__FILE__, __LINE__);
 	// Make the CPU wiat until this event finishes so the timing will be correct.
 	cudaEventSynchronize(StopEvent);
