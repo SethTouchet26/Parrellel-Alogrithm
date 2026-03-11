@@ -29,7 +29,7 @@ float *NumbersOnGPU, *PageableNumbersOnCPU, *PageLockedNumbersOnCPU;
 float *A_CPU, *B_CPU, *C_CPU; //CPU pointers
 float *A_GPU, *B_GPU, *C_GPU; //GPU pointers
 cudaEvent_t StartEvent, StopEvent;
-// ??? Notice that we have to define a stream
+// (Define stream) Notice that we have to define a stream
 cudaStream_t Stream0;
 
 //Function prototypes
@@ -76,7 +76,7 @@ void setUpCudaDevices()
 		exit(0);
 	}
 	
-	// ??? Notice that we have to create the stream
+	// (Create stream) Notice that we have to create the stream
 	cudaStreamCreate(&Stream0);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
@@ -106,7 +106,7 @@ void allocateMemory()
 	cudaMalloc(&C_GPU,DATA_CHUNKS*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	//??? Notice that we are using host page locked memory
+	//(Pinned memory) Notice that we are using host page locked memory
 	//Allocate page locked Host (CPU) Memory
 	cudaHostAlloc(&A_CPU, ENTIRE_DATA_SET*sizeof(float), cudaHostAllocDefault);
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -138,7 +138,7 @@ void cleanUp()
 	cudaFree(C_GPU); 
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	// ??? Notice that we have to free this memory with cudaFreeHost
+	// (Free pinned memory) Notice that we have to free this memory with cudaFreeHost
 	cudaFreeHost(A_CPU);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaFreeHost(B_CPU);
@@ -151,7 +151,7 @@ void cleanUp()
 	cudaEventDestroy(StopEvent);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	// ??? Notice that we have to kill the stream.
+	// (Destroy stream) Notice that we have to kill the stream.
 	cudaStreamDestroy(Stream0);
 	cudaErrorCheck(__FILE__, __LINE__);
 }
@@ -177,12 +177,22 @@ int main()
 	cudaEventRecord(StartEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	for(int i = 0; i < ENTIRE_DATA_SET; i += DATA_CHUNKS)
+	for(int i = 0; i < ENTIRE_DATA_SET; i += DATA_CHUNKS) // (Loop body)
 	{
-		???
+		cudaMemcpyAsync(A_GPU, A_CPU + i, DATA_CHUNKS*sizeof(float), cudaMemcpyHostToDevice, Stream0);
+        cudaErrorCheck(__FILE__, __LINE__);
+
+        cudaMemcpyAsync(B_GPU, B_CPU + i, DATA_CHUNKS*sizeof(float), cudaMemcpyHostToDevice, Stream0);
+        cudaErrorCheck(__FILE__, __LINE__);
+
+        trigAdditionGPU<<<GridSize, BlockSize, 0, Stream0>>>(A_GPU, B_GPU, C_GPU, DATA_CHUNKS);
+        cudaErrorCheck(__FILE__, __LINE__);
+
+        cudaMemcpyAsync(C_CPU + i, C_GPU, DATA_CHUNKS*sizeof(float), cudaMemcpyDeviceToHost, Stream0);
+        cudaErrorCheck(__FILE__, __LINE__);
 	}
 	
-	// ??? Notice that we have to make the CPU wait until the GPU has finished stream0
+	// (Synchronize stream) Notice that we have to make the CPU wait until the GPU has finished stream0
 	cudaStreamSynchronize(Stream0); 
 	
 	cudaEventRecord(StopEvent, 0);
