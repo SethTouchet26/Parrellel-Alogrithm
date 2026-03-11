@@ -210,4 +210,4 @@ int main()
 	cleanUp();	
 	
 	return(0);
-}
+} // The results for the time on the GPU is 21.4 milliseconds.
