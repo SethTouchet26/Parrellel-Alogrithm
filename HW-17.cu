@@ -194,12 +194,26 @@ int main()
 	cudaEventRecord(StartEvent, 0);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	for(int i = 0; i < ENTIRE_DATA_SET; i += DATA_CHUNKS*2)
+	for(int i = 0; i < ENTIRE_DATA_SET; i += DATA_CHUNKS*2) // for the streams think about a assembly lines
 	{
-		******************************************
-		???
-		******************************************
-	}
+	// Stream 0, an independent queues as it copy, compute, and copy
+        cudaMemcpyAsync(A0_GPU, &A_CPU[i], DATA_CHUNKS*sizeof(float), cudaMemcpyHostToDevice, Stream0);
+
+        cudaMemcpyAsync(B0_GPU, &B_CPU[i], DATA_CHUNKS*sizeof(float), cudaMemcpyHostToDevice, Stream0);
+
+        trigAdditionGPU<<<GridSize, BlockSize, 0, Stream0>>>(A0_GPU, B0_GPU, C0_GPU, DATA_CHUNKS);
+
+        cudaMemcpyAsync(&C_CPU[i], C0_GPU, DATA_CHUNKS*sizeof(float), cudaMemcpyDeviceToHost, Stream0);
+
+        // Stream 1, another independent queues as it copy, compute, and copy
+        cudaMemcpyAsync(A1_GPU, &A_CPU[i + DATA_CHUNKS], DATA_CHUNKS*sizeof(float), cudaMemcpyHostToDevice, Stream1);
+
+        cudaMemcpyAsync(B1_GPU, &B_CPU[i + DATA_CHUNKS], DATA_CHUNKS*sizeof(float), cudaMemcpyHostToDevice, Stream1);
+
+        trigAdditionGPU<<<GridSize, BlockSize, 0, Stream1>>>(A1_GPU, B1_GPU, C1_GPU, DATA_CHUNKS);
+
+        cudaMemcpyAsync(&C_CPU[i + DATA_CHUNKS], C1_GPU, DATA_CHUNKS*sizeof(float), cudaMemcpyDeviceToHost, Stream1);
+    }
 	
 	// Make the CPU wait until the Streams have finishd before it continues.
 	cudaStreamSynchronize(Stream0);
