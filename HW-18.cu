@@ -1,6 +1,6 @@
 // Name: Seth Touchet
 // GPU random walk. 
-// nvcc P_GPURandomWalk.cu -o temp
+// nvcc HW-18.cu -o temp
 
 /*
  What to do:
