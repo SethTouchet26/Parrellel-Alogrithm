@@ -43,14 +43,44 @@
 #include <stdio.h>
 
 // Defines
+#define NUM_WALKS 2000
+#define STEPS 10000
 
 // Globals
 int NumberOfRandomSteps = 10000;
 float MidPoint = (float)RAND_MAX/2.0f;
+//GPU kernel
+__global__ void randomWalk(curandState *states, int *posX, int *posY)
+{
+	ind id = threadIdx.x + blockIdx.x * blockDim.x
+
+	if (id >= NUM_WALKS) return;
+
+	curand_init(1234, id, 0, &states[id]);
+
+	int x = 0;
+	int y = 0;
+
+	for (int i = 0; i < STEPS; i++)
+	{
+		float r1 = curand_uniform(&states[id]);
+		float r2 = curand_uniform(&states[id]);
+
+		if (r1 < 5.0f)
+			x += -1;
+		else
+			x += 1;
+
+		if (r2 < 5.0f)
+			y += -1;
+		else
+			y += 1;
+	}
+	posX[id] = x;
+	posY[id] = y;
+}
 
 // Function prototypes
-int getRandomDirection();
-int main(int, char**);
 
 int getRandomDirection()
 {	
