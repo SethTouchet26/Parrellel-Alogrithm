@@ -41,6 +41,7 @@
 // Include files
 #include <sys/time.h>
 #include <stdio.h>
+#include <curand_kernel.h>
 
 // Defines
 #define NUM_WALKS 2000
@@ -50,21 +51,22 @@
 int NumberOfRandomSteps = 10000;
 float MidPoint = (float)RAND_MAX/2.0f;
 //GPU kernel
-__global__ void randomWalk(curandState *states, int *posX, int *posY)
+__global__ void gpuRandomWalk(int *posX, int *posY, int steps, unsigned long seed)
 {
-	ind id = threadIdx.x + blockIdx.x * blockDim.x
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
 
 	if (id >= NUM_WALKS) return;
-
-	curand_init(1234, id, 0, &states[id]);
+	//The cuRAND part
+	curandState state;
+	curand_init(seed, id, 0, &state);
 
 	int x = 0;
 	int y = 0;
 
 	for (int i = 0; i < STEPS; i++)
 	{
-		float r1 = curand_uniform(&states[id]);
-		float r2 = curand_uniform(&states[id]);
+		float r1 = curand_uniform(&state);
+		float r2 = curand_uniform(&state);
 
 		if (r1 < 5.0f)
 			x += -1;
@@ -103,9 +105,29 @@ int main(int argc, char** argv)
 		positionX += getRandomDirection();
 		positionY += getRandomDirection();
 	}
-	
+
 	printf("\n Final position = (%d,%d) \n", positionX, positionY);
+	//GPU Segment and  for the cudaMallocManaged part
+	const int numWalks = 2000;
+
+	int *gpuPosX;
+	int *gpuPosY;
+
+	cudaMallocManaged(&gpuPosX, numWalks * sizeof(int));
+	cudaMallocManaged(&gpuPosY, numWalks * sizeof(int));
+
+	int threadsPerBlock = 256;
+	int blocks = (numWalks + threadsPerBlock -1)/ threadsPerBlock;
+
+	gpuRandomWalk<<<blocks, threadsPerBlock>>>(gpuPosX, gpuPosY, NumberOfRandomSteps, time(NULL));
+
+	cudaDeviceSynchronize();
+
+	printf("\n GPU Spot Check");
+	printf("Walk 5 final position = (%d,%d)\n", gpuPosX[5], gpuPosY[5]);
+	printf("Walk 100 final position = (%d,%d)\n", gpuPosX[100], gpuPosY[100]);
+	printf("Walk 789 final position = (%d,%d)\n", gpuPosX[789], gpuPosY[789]);
+	printf("Walk 1622 final position = (%d,%d)\n", gpuPosX[1622], gpuPosY[1622]);
+
 	return 0;
 }
-
-
