@@ -56,24 +56,26 @@ __global__ void gpuRandomWalk(int *posX, int *posY, int steps, unsigned long see
 	int id = threadIdx.x + blockIdx.x * blockDim.x;
 
 	if (id >= NUM_WALKS) return;
-	//The cuRAND part
+	//The cuRAND part of the instructions
 	curandState state;
-	curand_init(seed, id, 0, &state);
+	curand_init(seed + id, 0, 0, &state); /*(seed + id, 0, &state) for the 'each with a different seed' 
+	to be safe as it expects diffent seed values, not just a different sequences such as the 
+	(seed, id, 0, &state) to clarify*/
 
 	int x = 0;
 	int y = 0;
 
-	for (int i = 0; i < STEPS; i++)
+	for (int i = 0; i < steps; i++)
 	{
 		float r1 = curand_uniform(&state);
 		float r2 = curand_uniform(&state);
 
-		if (r1 < 5.0f)
+		if (r1 < 0.5f)
 			x += -1;
 		else
 			x += 1;
 
-		if (r2 < 5.0f)
+		if (r2 < 0.5f)
 			y += -1;
 		else
 			y += 1;
@@ -106,8 +108,8 @@ int main(int argc, char** argv)
 		positionY += getRandomDirection();
 	}
 
-	printf("\n Final position = (%d,%d) \n", positionX, positionY);
-	//GPU Segment and  for the cudaMallocManaged part
+	printf("\n Final position = (%d,%d) \n", positionX, positionY); //For the CPU's Position
+	//GPU Segment and for the cudaMallocManaged part of the instructions.
 	const int numWalks = 2000;
 
 	int *gpuPosX;
@@ -123,11 +125,32 @@ int main(int argc, char** argv)
 
 	cudaDeviceSynchronize();
 
-	printf("\n GPU Spot Check");
+	printf("\n GPU Spot Check \n");
 	printf("Walk 5 final position = (%d,%d)\n", gpuPosX[5], gpuPosY[5]);
 	printf("Walk 100 final position = (%d,%d)\n", gpuPosX[100], gpuPosY[100]);
 	printf("Walk 789 final position = (%d,%d)\n", gpuPosX[789], gpuPosY[789]);
 	printf("Walk 1622 final position = (%d,%d)\n", gpuPosX[1622], gpuPosY[1622]);
 
 	return 0;
-}
+}// RAND_MAX  for this implementation is = 2147483647
+/*
+1st run:
+For the CPU's Last Position is (108, 62)
+
+And for the GPU Spots:
+
+Walk 5 Final Postion = (-186, 168)
+Walk 100 Final Postion = (-118, 160)
+Walk 789 Final Postion = (-34, -98)
+Walk 1622 Final Postion = (-104, -38)
+
+2nd run:
+For the CPU's Last Position is (24, -38)
+
+And for the GPU Spots:
+
+Walk 5 Final Postion = (-66, 18)
+Walk 100 Final Postion = (-64, 32)
+Walk 789 Final Postion = (74, -34)
+Walk 1622 Final Postion = (124, -108)
+*/
