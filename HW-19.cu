@@ -1,4 +1,4 @@
-// Name:
+// Name: Seth Touchet
 // Vector addition on two GPUs.
 // nvcc HW-19.cu -o temp
 /*
@@ -32,6 +32,7 @@
 // Include files
 #include <sys/time.h>
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 // Defines
 #define N 11503 // Length of the vector
@@ -132,7 +133,7 @@ __global__ void addVectorsGPU(float *a, float *b, float *c, int n)
 bool check(float *c, int n, float tolerence)
 {
 	int id;
-	double myAnswer;
+	double myAnswer ;
 	double trueAnswer;
 	double percentError;
 	double m = n-1; // Needed the -1 because we start at 0.
@@ -190,12 +191,23 @@ int main()
 {
 	timeval start, end;
 	long timeCPU, timeGPU;
-	
+
+	int deviceCount; // For the GPUs to be used
+	cudaGetDeviceCount(&deviceCount);
+	if(deviceCount < 2)
+	{
+		printf("Need at least 2 GPUs\n")
+		return 0;
+	}
+
+	int half = N / 2;
+	int otherHalf = N - half;
+
 	// Setting up the GPU
-	setUpDevices();
+	setUpDevices(N);
 	
 	// Allocating the memory you will need.
-	allocateMemory();
+	allocateMemory(half, otherHalf);
 	
 	// Putting values in the vectors.
 	innitialize();
@@ -228,7 +240,7 @@ int main()
 	cudaMemcpyAsync(C_CPU, C_GPU, N*sizeof(float), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
-	// Making sure the GPU and CPU wiat until each other are at the same place.
+	// Making sure the GPU and CPU wait until each other are at the same place.
 	cudaDeviceSynchronize();
 	cudaErrorCheck(__FILE__, __LINE__);
 	
