@@ -66,10 +66,10 @@ void Display(void);
 void reshape(int, int);
 int main(int, char**);
 
-void set_initail_conditions() //needing to just rewrite the code here to be clearer with the addition to the n-body.
+void set_initial_conditions() //needing to just rewrite the code here to be clearer with the addition to the n-body.
 { 
 	srand(time(NULL));
-	float dx, dy, dz, seperation;
+	float dx, dy, dz, separation;
 
 	for(int i = 0; i <NUMBER_OF_SPHERES; i++)
 	{
@@ -77,21 +77,21 @@ void set_initail_conditions() //needing to just rewrite the code here to be clea
 
 		while(!valid)
 		{
-			vaild = 1;
+			valid = 1;
 
 			px[i] = (LENGTH_OF_BOX - DIAMETER)*rand()/RAND_MAX - (LENGTH_OF_BOX - DIAMETER)/2.0;
 			py[i] = (LENGTH_OF_BOX - DIAMETER)*rand()/RAND_MAX - (LENGTH_OF_BOX - DIAMETER)/2.0;
 			pz[i] = (LENGTH_OF_BOX - DIAMETER)*rand()/RAND_MAX - (LENGTH_OF_BOX - DIAMETER)/2.0;
 	
-			for(int j = 0; j <vi; j++)
+			for(int j = 0; j < i; j++)
 			{
 		
 				dx = px[i] - px[j];
 				dy = py[i] - py[j];
 				dz = pz[i] - pz[j];
-				seperation = sqrt(dx*dx + dy*dy + dz*dz);
+				separation = sqrt(dx*dx + dy*dy + dz*dz);
 
-				if(seperation < DIAMETER) yeahBuddy = 0;
+				if(separation < DIAMETER);
 				{
 					valid = 0;
 					break;
@@ -150,7 +150,7 @@ void draw_picture()
 	
 	Drawwirebox();
 
-	for(int i = 0; i < NUMBER_OF_SPHERES, i++)
+	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
 		glPushMatrix();
 		glTranslatef(px[i], py[i], pz[i]);
@@ -204,7 +204,7 @@ void keep_in_box()
 
 void get_forces()
 {
-	float dx,dy,dz,r,r2,dvx,dvy,dvz,forceMag,inout;
+	float dx,dy,dz,r,r2,forceMag;
 	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
 		fx[i] = fy[i] = fz[i] = 0.0;
@@ -225,7 +225,7 @@ void get_forces()
 			
 			if (r < DIAMETER) //Collision pushback
 			{
-				forceMag +=  SPHERE_PUSH_BACK_STRENGTH*(r - DIAMETER);
+				forceMag +=  SPHERE_PUSH_BACK_STRENGTH*(DIAMETER - r);
 			}
 		
 			float fxij = forceMag * dx/r;
@@ -242,7 +242,7 @@ void get_forces()
 	}
 }
 
-void move_bodies(float time)
+void move_bodies()
 {
 	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
@@ -263,7 +263,7 @@ void nbody()
 	int    tdraw = 0;
 	float  time = 0.0;
 
-	set_initail_conditions();
+	set_initial_conditions();
 	
 	draw_picture();
 	
@@ -342,6 +342,3 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
-
-
-
