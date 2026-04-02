@@ -33,7 +33,7 @@
 #define MASS 10.0  	
 #define DIAMETER 1.0
 #define SPHERE_PUSH_BACK_STRENGTH 50.0
-#define PUSH_BACK_REDUCTION 0.1
+//#define PUSH_BACK_REDUCTION 0.1
 #define DAMP 0.01
 #define DRAW 100
 #define LENGTH_OF_BOX 6.0
@@ -91,7 +91,7 @@ void set_initial_conditions() //needing to just rewrite the code here to be clea
 				dz = pz[i] - pz[j];
 				separation = sqrt(dx*dx + dy*dy + dz*dz);
 
-				if(separation < DIAMETER);
+				if(separation < DIAMETER)
 				{
 					valid = 0;
 					break;
@@ -270,7 +270,7 @@ void nbody()
 	while(time < STOP_TIME)
 	{
 		get_forces();
-		move_bodies(time);
+		move_bodies();
 	
 		tdraw++;
 		if(tdraw == DRAW) 
@@ -315,7 +315,7 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGB);
 	glutInitWindowSize(XWindowSize,YWindowSize);
 	glutInitWindowPosition(0,0);
-	glutCreateWindow("2 Body 3D");
+	glutCreateWindow("N Body Space");
 	GLfloat light_position[] = {1.0, 1.0, 1.0, 0.0};
 	GLfloat light_ambient[]  = {0.0, 0.0, 0.0, 1.0};
 	GLfloat light_diffuse[]  = {1.0, 1.0, 1.0, 1.0};
