@@ -38,6 +38,7 @@
 #define DRAW 100
 #define LENGTH_OF_BOX 6.0
 #define MAX_VELOCITY 5.0
+
 #define NUMBER_OF_SPHERES 30
 
 // Globals
@@ -50,7 +51,7 @@ const float ZMin = -(LENGTH_OF_BOX/2.0);
 
 float px[NUMBER_OF_SPHERES], py[NUMBER_OF_SPHERES], pz[NUMBER_OF_SPHERES]; //The changes made to convert to an N-Body
 float vx[NUMBER_OF_SPHERES], vy[NUMBER_OF_SPHERES], vz[NUMBER_OF_SPHERES];
-float fx[NUMBER_OF_SPHERES], fy[NUMBER_OF_SPHERES], fz2[NUMBER_OF_SPHERES];
+float fx[NUMBER_OF_SPHERES], fy[NUMBER_OF_SPHERES], fz[NUMBER_OF_SPHERES];
 float mass [NUMBER_OF_SPHERES];
 
 // Function prototypes
@@ -72,8 +73,9 @@ void set_initail_conditions() //needing to just rewrite the code here to be clea
 
 	for(int i = 0; i <NUMBER_OF_SPHERES; i++)
 	{
-		int vaild = 0;
-		while(!vaild)
+		int valid = 0;
+
+		while(!valid)
 		{
 			vaild = 1;
 
@@ -148,7 +150,7 @@ void draw_picture()
 	
 	Drawwirebox();
 
-	for(int i = 0; i < NUMBER_OFSPHERES, i++)
+	for(int i = 0; i < NUMBER_OF_SPHERES, i++)
 	{
 		glPushMatrix();
 		glTranslatef(px[i], py[i], pz[i]);
@@ -165,7 +167,7 @@ void keep_in_box()
 
 	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
-		if(px1 > halfBoxLength)
+		if(px[i] > halfBoxLength)
 		{
 			px[i] = 2.0*halfBoxLength - px[i];
 			vx[i] = - vx[i];
@@ -216,6 +218,7 @@ void get_forces()
 			dz = pz[j] - pz[i];
 						
 			r2 = dx*dx + dy*dy + dz*dz;
+			if (r2 < 1e-6) continue;
 			r = sqrt(r2);
 
 			forceMag = mass[i] * mass[j] * GRAVITY/r2;
