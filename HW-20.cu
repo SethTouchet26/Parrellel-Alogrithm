@@ -29,15 +29,15 @@
 #define YWindowSize 1000
 #define STOP_TIME 10000.0
 #define DT        0.0001
-#define GRAVITY 0.1 
+#define GRAVITY 2.0
 #define MASS 10.0  	
 #define DIAMETER 1.0
 #define SPHERE_PUSH_BACK_STRENGTH 50.0
-#define PUSH_BACK_REDUCTION 0.2
-#define DAMP 0.5
+#define PUSH_BACK_REDUCTION 0.3
+#define DAMP 0.2
 #define DRAW 100
 #define LENGTH_OF_BOX 6.0
-#define MAX_VELOCITY 5.0
+#define MAX_VELOCITY 1.5
 
 #define NUMBER_OF_SPHERES 30
 
@@ -48,6 +48,8 @@ const float ZMax = (LENGTH_OF_BOX/2.0);
 const float XMin = -(LENGTH_OF_BOX/2.0);
 const float YMin = -(LENGTH_OF_BOX/2.0);
 const float ZMin = -(LENGTH_OF_BOX/2.0);
+
+float r[NUMBER_OF_SPHERES], g[NUMBER_OF_SPHERES], b[NUMBER_OF_SPHERES];
 
 float px[NUMBER_OF_SPHERES], py[NUMBER_OF_SPHERES], pz[NUMBER_OF_SPHERES]; //The changes made to convert to an N-Body
 float vx[NUMBER_OF_SPHERES], vy[NUMBER_OF_SPHERES], vz[NUMBER_OF_SPHERES];
@@ -103,12 +105,16 @@ void set_initial_conditions() //needing to just rewrite the code here to be clea
 		vz[i] = 2.0*MAX_VELOCITY*rand()/RAND_MAX - MAX_VELOCITY;
 	
 		mass[i] = MASS;
+
+		r[i] = (float)rand() / RAND_MAX;
+		g[i] = (float)rand() / RAND_MAX;
+		b[i] = (float)rand() / RAND_MAX;
 	}
 }
 
 void Drawwirebox()
 {		
-	glColor3f (5.0,1.0,1.0);
+	glColor3f (1.0,1.0,1.0);
 	glBegin(GL_LINE_STRIP);
 		glVertex3f(XMax,YMax,ZMax);
 		glVertex3f(XMax,YMax,ZMin);	
@@ -154,6 +160,7 @@ void draw_picture()
 	{
 		glPushMatrix();
 		glTranslatef(px[i], py[i], pz[i]);
+		glColor3f(r[i], g[i], b[i]);
 		glutSolidSphere(radius, 20, 20);
 		glPopMatrix();
 	}
@@ -218,7 +225,7 @@ void get_forces()
 			dz = pz[j] - pz[i];
 						
 			r2 = dx*dx + dy*dy + dz*dz;
-			if (r2 < 1e-6) continue;
+			r2 += 1e-6;
 			r = sqrt(r2);
 
 			forceMag = mass[i] * mass[j] * GRAVITY/r2;
@@ -260,11 +267,14 @@ void move_bodies()
 
 void nbody()
 {	
-	int    tdraw = 0;
+	static int intitalized = 0;
+	static int tdraw = 0;
 	float  time = 0.0;
-
-	set_initial_conditions();
-	
+	if (!intitalized)
+	{
+		set_initial_conditions();
+		intitalized = 1;
+	}
 	draw_picture();
 	
 	while(time < STOP_TIME)
@@ -315,7 +325,7 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGB);
 	glutInitWindowSize(XWindowSize,YWindowSize);
 	glutInitWindowPosition(0,0);
-	glutCreateWindow("N Body Space");
+	glutCreateWindow("N Body Screen Saver");
 	GLfloat light_position[] = {1.0, 1.0, 1.0, 0.0};
 	GLfloat light_ambient[]  = {0.0, 0.0, 0.0, 1.0};
 	GLfloat light_diffuse[]  = {1.0, 1.0, 1.0, 1.0};
@@ -337,8 +347,11 @@ int main(int argc, char** argv)
 	glEnable(GL_LIGHT0);
 	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_DEPTH_TEST);
-	glutDisplayFunc(draw_picture);
+
+	glutDisplayFunc(Display);
 	glutReshapeFunc(reshape);
+	glutIdleFunc(nbody);
+
 	glutMainLoop();
 	return 0;
 }/*Observation: */
