@@ -33,8 +33,8 @@
 #define MASS 10.0  	
 #define DIAMETER 1.0
 #define SPHERE_PUSH_BACK_STRENGTH 50.0
-//#define PUSH_BACK_REDUCTION 0.1
-#define DAMP 0.01
+#define PUSH_BACK_REDUCTION 0.2
+#define DAMP 0.5
 #define DRAW 100
 #define LENGTH_OF_BOX 6.0
 #define MAX_VELOCITY 5.0
@@ -55,12 +55,12 @@ float fx[NUMBER_OF_SPHERES], fy[NUMBER_OF_SPHERES], fz[NUMBER_OF_SPHERES];
 float mass [NUMBER_OF_SPHERES];
 
 // Function prototypes
-void set_initail_conditions();
+void set_initial_conditions();
 void Drawwirebox();
 void draw_picture();
 void keep_in_box();
 void get_forces();
-void move_bodies(float);
+void move_bodies();
 void nbody();
 void Display(void);
 void reshape(int, int);
@@ -102,7 +102,7 @@ void set_initial_conditions() //needing to just rewrite the code here to be clea
 		vy[i] = 2.0*MAX_VELOCITY*rand()/RAND_MAX - MAX_VELOCITY;
 		vz[i] = 2.0*MAX_VELOCITY*rand()/RAND_MAX - MAX_VELOCITY;
 	
-		mass[i] = 1.0;
+		mass[i] = MASS;
 	}
 }
 
@@ -225,7 +225,7 @@ void get_forces()
 			
 			if (r < DIAMETER) //Collision pushback
 			{
-				forceMag +=  SPHERE_PUSH_BACK_STRENGTH*(DIAMETER - r);
+				forceMag +=  SPHERE_PUSH_BACK_STRENGTH * PUSH_BACK_REDUCTION * (DIAMETER - r);
 			}
 		
 			float fxij = forceMag * dx/r;
@@ -337,8 +337,8 @@ int main(int argc, char** argv)
 	glEnable(GL_LIGHT0);
 	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_DEPTH_TEST);
-	glutDisplayFunc(Display);
+	glutDisplayFunc(draw_picture);
 	glutReshapeFunc(reshape);
 	glutMainLoop();
 	return 0;
-}
+}/*Observation: */
