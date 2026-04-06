@@ -33,13 +33,13 @@
 #define MASS 10.0  	
 #define DIAMETER 1.0
 #define SPHERE_PUSH_BACK_STRENGTH 50.0
-#define PUSH_BACK_REDUCTION 0.3
-#define DAMP 0.2
+#define PUSH_BACK_REDUCTION 0.1
+#define DAMP 0.01
 #define DRAW 100
 #define LENGTH_OF_BOX 6.0
-#define MAX_VELOCITY 1.5
+#define MAX_VELOCITY 5.0
 
-#define NUMBER_OF_SPHERES 30
+#define NUMBER_OF_SPHERES 3
 
 // Globals
 const float XMax = (LENGTH_OF_BOX/2.0);
@@ -225,14 +225,13 @@ void get_forces()
 			dz = pz[j] - pz[i];
 						
 			r2 = dx*dx + dy*dy + dz*dz;
-			r2 += 1e-6;
 			r = sqrt(r2);
 
 			forceMag = mass[i] * mass[j] * GRAVITY/r2;
 			
 			if (r < DIAMETER) //Collision pushback
 			{
-				forceMag +=  SPHERE_PUSH_BACK_STRENGTH * PUSH_BACK_REDUCTION * (DIAMETER - r);
+				forceMag +=  SPHERE_PUSH_BACK_STRENGTH * PUSH_BACK_REDUCTION * (r - DIAMETER);
 			}
 		
 			float fxij = forceMag * dx/r;
@@ -253,9 +252,9 @@ void move_bodies()
 {
 	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
-		vx[i] += DT*(fx[i] - DAMP * vx[i]) /mass[i];
-		vy[i] += DT*(fy[i] - DAMP * vy[i]) /mass[i];
-		vz[i] += DT*(fz[i] - DAMP * vz[i]) /mass[i];
+		vx[i] += 0.5*DT*(fx[i] - DAMP * vx[i]) /mass[i];
+		vy[i] += 0.5*DT*(fy[i] - DAMP * vy[i]) /mass[i];
+		vz[i] += 0.5*DT*(fz[i] - DAMP * vz[i]) /mass[i];
 
 		px[i] += DT*vx[i];
 		py[i] += DT*vy[i];
