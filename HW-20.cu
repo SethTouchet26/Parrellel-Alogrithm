@@ -29,7 +29,7 @@
 #define YWindowSize 1000
 #define STOP_TIME 10000.0
 #define DT        0.0001
-#define GRAVITY 2.0
+#define GRAVITY 0.1
 #define MASS 10.0  	
 #define DIAMETER 1.0
 #define SPHERE_PUSH_BACK_STRENGTH 50.0
@@ -39,7 +39,7 @@
 #define LENGTH_OF_BOX 6.0
 #define MAX_VELOCITY 5.0
 
-#define NUMBER_OF_SPHERES 10 //Can change the value whenever.
+#define NUMBER_OF_SPHERES 2 //Can change the value whenever.
 
 // Globals
 const float XMax = (LENGTH_OF_BOX/2.0);
