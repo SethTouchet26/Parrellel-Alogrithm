@@ -39,7 +39,7 @@
 #define LENGTH_OF_BOX 6.0
 #define MAX_VELOCITY 5.0
 
-#define NUMBER_OF_SPHERES 2 //Can change the value whenever.
+#define NUMBER_OF_SPHERES 10 //Can change the value whenever.
 
 // Globals
 const float XMax = (LENGTH_OF_BOX/2.0);
@@ -70,7 +70,7 @@ int main(int, char**);
 
 void set_initial_conditions() //needing to just rewrite the code here to be clearer with the addition to the n-body.
 { 
-	srand(time(NULL));
+	srand((unsigned) time(NULL));
 	float dx, dy, dz, separation;
 
 	for(int i = 0; i <NUMBER_OF_SPHERES; i++)
@@ -158,6 +158,7 @@ void draw_picture()
 
 	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
+		
 		glPushMatrix();
 		glTranslatef(px[i], py[i], pz[i]);
 		glColor3f(r[i], g[i], b[i]);
@@ -318,7 +319,6 @@ void Display(void)
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glutSwapBuffers();
 	glFlush();
-	nbody();
 }
 
 void reshape(int w, int h)
