@@ -39,7 +39,7 @@
 #define LENGTH_OF_BOX 6.0
 #define MAX_VELOCITY 5.0
 
-#define NUMBER_OF_SPHERES 3
+#define NUMBER_OF_SPHERES 2 //Can change the value whenever.
 
 // Globals
 const float XMax = (LENGTH_OF_BOX/2.0);
@@ -114,7 +114,7 @@ void set_initial_conditions() //needing to just rewrite the code here to be clea
 
 void Drawwirebox()
 {		
-	glColor3f (1.0,1.0,1.0);
+	glColor3f (5.0,1.0,1.0);
 	glBegin(GL_LINE_STRIP);
 		glVertex3f(XMax,YMax,ZMax);
 		glVertex3f(XMax,YMax,ZMin);	
@@ -211,7 +211,8 @@ void keep_in_box()
 
 void get_forces()
 {
-	float dx,dy,dz,r,r2,forceMag;
+	float dx,dy,dz,r,r2,dvx,dvy,dvz,forceMag,inout;
+
 	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
 		fx[i] = fy[i] = fz[i] = 0.0;
@@ -231,55 +232,70 @@ void get_forces()
 			
 			if (r < DIAMETER) //Collision pushback
 			{
-				forceMag +=  SPHERE_PUSH_BACK_STRENGTH * PUSH_BACK_REDUCTION * (r - DIAMETER);
+				dvx = vx[j] - vx[i];
+				dvy = vy[j] - vy[i];
+				dvz = vz[j] - vz[i];
+				inout = dx*dvx + dy*dvy + dz*dvz;
+				if(inout <= 0.0)
+				{
+					forceMag +=  SPHERE_PUSH_BACK_STRENGTH * (r - DIAMETER);
+				}
+				else
+				{
+					forceMag +=  SPHERE_PUSH_BACK_STRENGTH * PUSH_BACK_REDUCTION * (r - DIAMETER);
+				}
 			}
 		
-			float fxij = forceMag * dx/r;
-			float fyij = forceMag * dy/r;
-			float fzij = forceMag * dz/r;
-			fx[i] += fxij;
-			fy[i] += fyij;
-			fz[i] += fzij;
+			fx[i] += forceMag * dx/r;
+			fy[i] += forceMag * dy/r;
+			fz[i] += forceMag * dz/r;
 
-			fx[j] -= fxij;
-			fy[j] -= fyij;
-			fz[j] -= fzij;
+			fx[j] -= forceMag * dx/r;
+			fy[j] -= forceMag * dy/r;
+			fz[j] -= forceMag * dz/r;
+			
 		}
 	}
 }
 
-void move_bodies()
+void move_bodies(float time)
 {
 	for(int i = 0; i < NUMBER_OF_SPHERES; i++)
 	{
-		vx[i] += 0.5*DT*(fx[i] - DAMP * vx[i]) /mass[i];
-		vy[i] += 0.5*DT*(fy[i] - DAMP * vy[i]) /mass[i];
-		vz[i] += 0.5*DT*(fz[i] - DAMP * vz[i]) /mass[i];
-
+		if(time == 0.0)
+		{
+			vx[i] += 0.5*DT*(fx[i] - DAMP * vx[i]) /mass[i];
+			vy[i] += 0.5*DT*(fy[i] - DAMP * vy[i]) /mass[i];
+			vz[i] += 0.5*DT*(fz[i] - DAMP * vz[i]) /mass[i];
+		}
+		else
+		{
+			vx[i] += DT*(fx[i] - DAMP * vx[i]) /mass[i];
+			vy[i] += DT*(fy[i] - DAMP * vy[i]) /mass[i];
+			vz[i] += DT*(fz[i] - DAMP * vz[i]) /mass[i];
+		}
+		
 		px[i] += DT*vx[i];
 		py[i] += DT*vy[i];
 		pz[i] += DT*vz[i];
-	
+		
 	}
+	
 	keep_in_box();
 }
 
 void nbody()
 {	
-	static int intitalized = 0;
-	static int tdraw = 0;
+	int tdraw = 0;
 	float  time = 0.0;
-	if (!intitalized)
-	{
-		set_initial_conditions();
-		intitalized = 1;
-	}
+	
+	set_initial_conditions();
 	draw_picture();
 	
 	while(time < STOP_TIME)
 	{
 		get_forces();
-		move_bodies();
+		move_bodies(time);
 	
 		tdraw++;
 		if(tdraw == DRAW) 
