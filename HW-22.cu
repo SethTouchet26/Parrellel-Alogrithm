@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <cuda_runtime.h>
 
 // Defines
 #define PI 3.14159265359
@@ -53,6 +54,45 @@ void timer();
 void setup();
 void nBody();
 int main(int, char**);
+
+__global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N, float Damp, float dt, float time)
+{
+	int i = threadIdx.x;
+	if (i >= N) return;
+
+	float3 Pi = P[i];
+	float3 Fi =  (0.0f, 0.0f, 0.0f);
+
+	for (int j = 0; j < N; j++)
+	{
+		if (i == j) continue;
+
+		float dx = P[j].x - Pi.x;
+		float dy = P[j].y - Pi.y;
+		float dz = P[j].z - Pi.z;
+
+		float d2 = dx*dx + dy*dy + dz*dz;
+		float d = sqrtf(d2);
+
+		float force_mag = (G*M[i]*M[j])/(d2) - (H*M[i]*M[j])/(d2*d2);
+
+		Fi.x += force_mag * dx / d;
+		Fi.y += force_mag * dy / d;
+		Fi.z += force_mag * dz / d;
+	}
+	F[i] = Fi;
+
+	if (time == 0.0f)
+	{
+		V[i].x += ((Fi.x/M[i])*0.5f*dt);
+		V[i].y += ((Fi.y/M[i])*0.5f*dt);
+		V[i].z += ((Fi.z/M[i])*0.5f*dt);
+	}
+	P[i].x += V[i].x * dt;
+	P[i].y += V[i].y * dt;;
+	P[i].z += V[i].z * dt;;
+}
+
 
 void keyPressed(unsigned char key, int x, int y)
 {
@@ -184,71 +224,46 @@ void setup()
 
 void nBody()
 {
-	float force_mag; 
-	float dx,dy,dz,d, d2;
-	
 	int    drawCount = 0; 
 	float  time = 0.0;
 	float dt = 0.0001;
 
+	float3 *d_P, *d_V, *d_F;
+	float *d_M;
+
+	cudaMalloc((void**)&d_P, N*sizeof(float3));
+	cudaMalloc((void**)&d_V, N*sizeof(float3));
+	cudaMalloc((void**)&d_F, N*sizeof(float3));
+	cudaMalloc((void**)&d_M, N*sizeof(float));
+
+	cudaMemcpy(d_P, P, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_V, V, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_M, M, N*sizeof(float), cudaMemcpyHostToDevice);
+
 	while(time < RUN_TIME)
 	{
-		for(int i=0; i<N; i++)
-		{
-			F[i].x = 0.0;
-			F[i].y = 0.0;
-			F[i].z = 0.0;
-		}
-		
-		for(int i=0; i<N; i++)
-		{
-			for(int j=i+1; j<N; j++)
-			{
-				dx = P[j].x-P[i].x;
-				dy = P[j].y-P[i].y;
-				dz = P[j].z-P[i].z;
-				d2 = dx*dx + dy*dy + dz*dz;
-				d  = sqrt(d2);
-				
-				force_mag  = (G*M[i]*M[j])/(d2) - (H*M[i]*M[j])/(d2*d2);
-				F[i].x += force_mag*dx/d;
-				F[j].x -= force_mag*dx/d;
-				F[i].y += force_mag*dy/d;
-				F[j].y -= force_mag*dy/d;
-				F[i].z += force_mag*dz/d;
-				F[j].z -= force_mag*dz/d;
-			}
-		}
-
-		for(int i=0; i<N; i++)
-		{
-			if(time == 0.0)
-			{
-				V[i].x += (F[i].x/M[i])*0.5*dt;
-				V[i].y += (F[i].y/M[i])*0.5*dt;
-				V[i].z += (F[i].z/M[i])*0.5*dt;
-			}
-			else
-			{
-				V[i].x += ((F[i].x-Damp*V[i].x)/M[i])*dt;
-				V[i].y += ((F[i].y-Damp*V[i].y)/M[i])*dt;
-				V[i].z += ((F[i].z-Damp*V[i].z)/M[i])*dt;
-			}
-
-			P[i].x += V[i].x*dt;
-			P[i].y += V[i].y*dt;
-			P[i].z += V[i].z*dt;
-		}
+		computeForces<<<1, N>>>(d_P, d_V, d_F, d_M, N, Damp, dt, time);
+		cudaDeviceSynchronize();
 
 		if(drawCount == DRAW_RATE) 
 		{
-			if(DrawFlag) drawPicture();
+			if(DrawFlag) 
+			{
+				cudaMemcpy(P, d_P, N*sizeof(float3), cudaMemcpyDeviceToHost);
+				drawPicture();
+			}
 			drawCount = 0;
 		}
 		
 		time += dt;
 		drawCount++;
 	}
+	cudaMemcpy(P, d_P, N*sizeof(float3), cudaMemcpyDeviceToHost);
+
+	cudaFree(d_P);
+	cudaFree(d_V);
+	cudaFree(d_F);
+	cudaFree(d_M);
 }
 
 int main(int argc, char** argv)
@@ -314,8 +329,3 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
-
-
-
-
-
