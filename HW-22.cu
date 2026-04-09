@@ -57,7 +57,7 @@ void setup();
 void nBody();
 int main(int, char**);
 
-__global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N, float Damp, float dt, float time)
+__global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N)
 {
 	int i = threadIdx.x;
 	if (i >= N) return;
@@ -87,7 +87,7 @@ __global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N, 
 
 __global__ void integrationGPU(float3 *P, float3 *V, float3 *F, float *M, float Damp, float dt, float time, int N)
 {
-	int i = threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (i >= N) return;
 
@@ -241,7 +241,6 @@ void nBody()
 {
 	int    drawCount = 0; 
 	float  time = 0.0;
-	float dt = 0.0001;
 
 	cudaMalloc((void**)&d_P, N*sizeof(float3));
 	cudaMalloc((void**)&d_V, N*sizeof(float3));
@@ -254,9 +253,13 @@ void nBody()
 
 	while(time < RUN_TIME)
 	{
-		computeForces<<<1, N>>>(d_P, d_V, d_F, d_M, N, Damp, dt, time);
-		integrationGPU<<<1, N>>>(d_P, d_V, d_F, d_M, Damp, dt, time, N);
+		computeForces<<<1, N>>>(d_P, d_V, d_F, d_M, N);
+		integrationGPU<<<1, N>>>(d_P, d_V, d_F, d_M, Damp, DT, time, N);
 		cudaDeviceSynchronize();
+
+		cudaError_t err = cudaGetLastError();
+		if (err != cudaSuccess)
+			printf("CUDA error: %s\n", cudaGetErrorString(err));
 
 		if(drawCount == DRAW_RATE) 
 		{
@@ -268,7 +271,7 @@ void nBody()
 			drawCount = 0;
 		}
 		
-		time += dt;
+		time += DT;
 		drawCount++;
 	}
 	cudaMemcpy(P, d_P, N*sizeof(float3), cudaMemcpyDeviceToHost);
