@@ -42,6 +42,8 @@
 // Globals
 int N, DrawFlag;
 float3 *P, *V, *F;
+float3 *d_P, *d_V, *d_F;
+float *d_M;
 float *M; 
 float GlobeRadius, Diameter, Radius;
 float Damp;
@@ -71,7 +73,7 @@ __global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N, 
 		float dy = P[j].y - Pi.y;
 		float dz = P[j].z - Pi.z;
 
-		float d2 = dx*dx + dy*dy + dz*dz;
+		float d2 = dx*dx + dy*dy + dz*dz + 1e-6f;
 		float d = sqrtf(d2);
 
 		float force_mag = (G*M[i]*M[j])/(d2) - (H*M[i]*M[j])/(d2*d2);
@@ -91,15 +93,15 @@ __global__ void integrationGPU(float3 *P, float3 *V, float3 *F, float *M, float 
 
 	if (time == 0.0f)
 	{
-		V[i].x += ((Fi.x/M[i])*0.5f*dt);
-		V[i].y += ((Fi.y/M[i])*0.5f*dt);
-		V[i].z += ((Fi.z/M[i])*0.5f*dt);
+		V[i].x += ((F[i].x/M[i])*0.5f*dt);
+		V[i].y += ((F[i].y/M[i])*0.5f*dt);
+		V[i].z += ((F[i].z/M[i])*0.5f*dt);
 	}
 	else
 	{
-		V[i].x += ((F[i].x-Damp*V[i].x)/M[i])*dt);
-		V[i].y += ((F[i].y-Damp*V[i].y)/M[i])*dt);
-		V[i].z += ((F[i].z-Damp*V[i].z)/M[i])*dt);
+		V[i].x += ((F[i].x-Damp*V[i].x)/M[i])*dt;
+		V[i].y += ((F[i].y-Damp*V[i].y)/M[i])*dt;
+		V[i].z += ((F[i].z-Damp*V[i].z)/M[i])*dt;
 	}
 	P[i].x += V[i].x * dt;
 	P[i].y += V[i].y * dt;;
@@ -253,7 +255,7 @@ void nBody()
 	while(time < RUN_TIME)
 	{
 		computeForces<<<1, N>>>(d_P, d_V, d_F, d_M, N, Damp, dt, time);
-		integrate<<<1, N>>>(d_P, d_V, d_F, d_M, Damp, dt, time, N);
+		integrationGPU<<<1, N>>>(d_P, d_V, d_F, d_M, Damp, dt, time, N);
 		cudaDeviceSynchronize();
 
 		if(drawCount == DRAW_RATE) 
@@ -283,7 +285,7 @@ int main(int argc, char** argv)
 	{
 		printf("\n You need to enter the number of bodies (an int)"); 
 		printf("\n and if you want to draw the bodies as they move (1 draw, 0 don't draw),");
-		printf("\n on the comand line.\n"); 
+		printf("\n on the command line.\n"); 
 		exit(0);
 	}
 	else
