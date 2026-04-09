@@ -61,7 +61,7 @@ __global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N, 
 	if (i >= N) return;
 
 	float3 Pi = P[i];
-	float3 Fi =  (0.0f, 0.0f, 0.0f);
+	float3 Fi = {0.0f, 0.0f, 0.0f};
 
 	for (int j = 0; j < N; j++)
 	{
@@ -81,12 +81,25 @@ __global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N, 
 		Fi.z += force_mag * dz / d;
 	}
 	F[i] = Fi;
+}
+
+__global__ void integrationGPU(float3 *P, float3 *V, float3 *F, float *M, float Damp, float dt, float time, int N)
+{
+	int i = threadIdx.x;
+
+	if (i >= N) return;
 
 	if (time == 0.0f)
 	{
 		V[i].x += ((Fi.x/M[i])*0.5f*dt);
 		V[i].y += ((Fi.y/M[i])*0.5f*dt);
 		V[i].z += ((Fi.z/M[i])*0.5f*dt);
+	}
+	else
+	{
+		V[i].x += ((F[i].x-Damp*V[i].x)/M[i])*dt);
+		V[i].y += ((F[i].y-Damp*V[i].y)/M[i])*dt);
+		V[i].z += ((F[i].z-Damp*V[i].z)/M[i])*dt);
 	}
 	P[i].x += V[i].x * dt;
 	P[i].y += V[i].y * dt;;
@@ -228,9 +241,6 @@ void nBody()
 	float  time = 0.0;
 	float dt = 0.0001;
 
-	float3 *d_P, *d_V, *d_F;
-	float *d_M;
-
 	cudaMalloc((void**)&d_P, N*sizeof(float3));
 	cudaMalloc((void**)&d_V, N*sizeof(float3));
 	cudaMalloc((void**)&d_F, N*sizeof(float3));
@@ -243,6 +253,7 @@ void nBody()
 	while(time < RUN_TIME)
 	{
 		computeForces<<<1, N>>>(d_P, d_V, d_F, d_M, N, Damp, dt, time);
+		integrate<<<1, N>>>(d_P, d_V, d_F, d_M, Damp, dt, time, N);
 		cudaDeviceSynchronize();
 
 		if(drawCount == DRAW_RATE) 
@@ -290,7 +301,8 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGB);
 	glutInitWindowSize(XWindowSize,YWindowSize);
 	glutInitWindowPosition(0,0);
-	glutCreateWindow("nBody Test");
+	glutCreateWindow("nBody Test-1.2");
+
 	GLfloat light_position[] = {1.0, 1.0, 1.0, 0.0};
 	GLfloat light_ambient[]  = {0.0, 0.0, 0.0, 1.0};
 	GLfloat light_diffuse[]  = {1.0, 1.0, 1.0, 1.0};
@@ -298,6 +310,7 @@ int main(int argc, char** argv)
 	GLfloat lmodel_ambient[] = {0.2, 0.2, 0.2, 1.0};
 	GLfloat mat_specular[]   = {1.0, 1.0, 1.0, 1.0};
 	GLfloat mat_shininess[]  = {10.0};
+
 	glClearColor(0.0, 0.0, 0.0, 0.0);
 	glShadeModel(GL_SMOOTH);
 	glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
@@ -308,10 +321,12 @@ int main(int argc, char** argv)
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, lmodel_ambient);
 	glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
 	glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
+
 	glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
 	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_DEPTH_TEST);
+
 	glutKeyboardFunc(keyPressed);
 	glutDisplayFunc(drawPicture);
 	
@@ -322,6 +337,7 @@ int main(int argc, char** argv)
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	glFrustum(-0.2, 0.2, -0.2, 0.2, near, far);
+
 	glMatrixMode(GL_MODELVIEW);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	gluLookAt(eye.x, eye.y, eye.z, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
