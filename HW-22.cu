@@ -42,8 +42,8 @@
 // Globals
 int N, DrawFlag;
 float3 *P, *V, *F;
-float3 *d_P, *d_V, *d_F;
-float *d_M;
+float3 *d_P, *d_V, *d_F; // must add in
+float *d_M; // must add in
 float *M; 
 float GlobeRadius, Diameter, Radius;
 float Damp;
@@ -57,9 +57,9 @@ void setup();
 void nBody();
 int main(int, char**);
 
-__global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N)
+__global__ void computeForces(float3 *P, float3 *F, float *M, int N) // GPU kernel
 {
-	int i = threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= N) return;
 
 	float3 Pi = P[i];
@@ -85,7 +85,7 @@ __global__ void computeForces(float3 *P, float3 *V, float3 *F, float *M, int N)
 	F[i] = Fi;
 }
 
-__global__ void integrationGPU(float3 *P, float3 *V, float3 *F, float *M, float Damp, float dt, float time, int N)
+__global__ void integrationGPU(float3 *P, float3 *V, float3 *F, float *M, float Damp, float dt, float time, int N) // GPU kernel
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -104,12 +104,12 @@ __global__ void integrationGPU(float3 *P, float3 *V, float3 *F, float *M, float 
 		V[i].z += ((F[i].z-Damp*V[i].z)/M[i])*dt;
 	}
 	P[i].x += V[i].x * dt;
-	P[i].y += V[i].y * dt;;
-	P[i].z += V[i].z * dt;;
+	P[i].y += V[i].y * dt;
+	P[i].z += V[i].z * dt;
 }
 
 
-void keyPressed(unsigned char key, int x, int y)
+void keyPressed(unsigned char key, int x, int y) // leave it alone
 {
 	if(key == 's')
 	{
@@ -154,7 +154,7 @@ void drawPicture()
 	glutSwapBuffers();
 }
 
-void timer()
+void timer() // leave it alone
 {	
 	timeval start, end;
 	long computeTime;
@@ -169,7 +169,7 @@ void timer()
 	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
 }
 
-void setup()
+void setup() //leave it alone
 {
     	float randomAngle1, randomAngle2, randomRadius;
     	float d, dx, dy, dz;
@@ -253,11 +253,10 @@ void nBody()
 
 	while(time < RUN_TIME)
 	{
-		computeForces<<<1, N>>>(d_P, d_V, d_F, d_M, N);
+		computeForces<<<1, N>>>(d_P, d_F, d_M, N);
 		integrationGPU<<<1, N>>>(d_P, d_V, d_F, d_M, Damp, DT, time, N);
-		cudaDeviceSynchronize();
-
 		cudaError_t err = cudaGetLastError();
+		cudaDeviceSynchronize();
 		if (err != cudaSuccess)
 			printf("CUDA error: %s\n", cudaGetErrorString(err));
 
