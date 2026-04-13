@@ -129,11 +129,11 @@ void timer()
 	
 	drawPicture();
 	gettimeofday(&start, NULL);
-    		nBody();
-    		cudaDeviceSynchronize();
-		cudaErrorCheck(__FILE__, __LINE__);
-    	gettimeofday(&end, NULL);
-    	drawPicture();
+    nBody();
+    cudaDeviceSynchronize();
+	cudaErrorCheck(__FILE__, __LINE__);
+    gettimeofday(&end, NULL);
+    drawPicture();
     	
 	computeTime = elaspedTime(start, end);
 	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
@@ -141,26 +141,27 @@ void timer()
 
 void setup()
 {
-    	float randomAngle1, randomAngle2, randomRadius;
-    	float d, dx, dy, dz;
-    	int test;
-    	
-    	BlockSize.x = N;
+	float randomAngle1, randomAngle2, randomRadius;
+	float d, dx, dy, dz;
+    int test;
+
+	int threadsPerBlock = 256;
+	BlockSize.x = threadsPerBlock;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = 1;
+	GridSize.x = (N + threadsPerBlock - 1) / threadsPerBlock;
 	GridSize.y = 1;
 	GridSize.z = 1;
     	
-    	Damp = 0.5;
+	Damp = 0.5;
     	
-    	M = (float*)malloc(N*sizeof(float));
-    	P = (float3*)malloc(N*sizeof(float3));
-    	V = (float3*)malloc(N*sizeof(float3));
-    	F = (float3*)malloc(N*sizeof(float3));
+	M = (float*)malloc(N*sizeof(float));
+	P = (float3*)malloc(N*sizeof(float3));
+	V = (float3*)malloc(N*sizeof(float3));
+	F = (float3*)malloc(N*sizeof(float3));
     	
-    	cudaMalloc(&MGPU,N*sizeof(float));
+    cudaMalloc(&MGPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMalloc(&PGPU,N*sizeof(float3));
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -239,8 +240,9 @@ __global__ void leapFrog(float3 *p, float3 *v, float3 *f, float *m, float g, flo
 	float dx, dy, dz,d,d2;
 	float force_mag;
 	
-	int i = threadIdx.x;
-	
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if(i >= n) return;
+
 	f[i].x = 0.0f;
 	f[i].y = 0.0f;
 	f[i].z = 0.0f;
@@ -252,7 +254,7 @@ __global__ void leapFrog(float3 *p, float3 *v, float3 *f, float *m, float g, flo
 			dx = p[j].x-p[i].x;
 			dy = p[j].y-p[i].y;
 			dz = p[j].z-p[i].z;
-			d2 = dx*dx + dy*dy + dz*dz;
+			d2 = dx*dx + dy*dy + dz*dz + 1e-10f;
 			d  = sqrt(d2);
 			
 			force_mag  = (g*m[i]*m[j])/(d2) - (h*m[i]*m[j])/(d2*d2);
@@ -261,7 +263,7 @@ __global__ void leapFrog(float3 *p, float3 *v, float3 *f, float *m, float g, flo
 			f[i].z += force_mag*dz/d;
 		}
 	}
-	__syncthreads();
+//	__syncthreads();
 	
 	if(t == 0.0f)
 	{
@@ -279,7 +281,7 @@ __global__ void leapFrog(float3 *p, float3 *v, float3 *f, float *m, float g, flo
 	p[i].x += v[i].x*dt;
 	p[i].y += v[i].y*dt;
 	p[i].z += v[i].z*dt;
-	__syncthreads();
+//	__syncthreads();
 }
 
 void nBody()
@@ -368,8 +370,3 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
-
-
-
-
-
