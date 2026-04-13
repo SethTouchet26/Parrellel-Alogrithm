@@ -370,3 +370,7 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
+/*Results: 
+Compute time took 16642156 microseconds with 10 Spheres.
+Compute time took 16638623 microseconds with 20 Spheres.
+Compute time took 16641143 microseconds with 30 Spheres.*/
