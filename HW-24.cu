@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <cuda_runtime.h>
 
 // Defines
 #define BLOCK_SIZE 128
@@ -45,12 +46,15 @@ int NPerGPU; // Amount of vector on each GPU.
 int NumberOfGpus;
 float3 *P, *V, *F;
 float *M; 
+
 float3 **PGPU = NULL;
 float3 **VGPU = NULL;
 float3 **FGPU = NULL;
 float **MGPU = NULL;
+
 float GlobeRadius, Diameter, Radius;
 float Damp;
+
 dim3 BlockSize;
 dim3 GridSize;
 
@@ -86,7 +90,7 @@ void drawPicture()
 	
 	glColor3d(1.0,1.0,0.5);
 	
-	for(int i=0; i<N; i++)
+	for(int i = 0; i < N; i++)
 	{
 		glPushMatrix();
 		glTranslatef(P[i].x, P[i].y, P[i].z);
@@ -108,7 +112,7 @@ void setup()
 	cudaGetDeviceCount(&NumberOfGpus);
 	if(NumberOfGpus == 0)
 	{
-		printf("\n Dude, you don't even have a GPU. Sorry, you can't play with us. Call NVIDIA and buy a GPU — loser!\n");
+		printf("\n Dude, you don't even have a GPU. How can you even play with us? Fork over a organ or a leg to play man!\n");
 		exit(0);
 	}
 	else
@@ -302,6 +306,15 @@ void nBody()
 		for(int i = 0; i < NumberOfGpus; i++)
     		{
 			cudaSetDevice(i);
+			int start = i * ;
+			int end = min (start +  , );
+			int size = end - start;
+
+			cudaMemPrefetchAsync(&P[start], size*sizeof(float3), i);
+			cudaMemPrefetchAsync(&V[start], size*sizeof(float3), i);
+			cudaMemPrefetchAsync(&F[start], size*sizeof(float3), i);
+			cudaMemPrefetchAsync(&M[start], size*sizeof(float), i);
+
 			getForces<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], G, H, NPerGPU, N, i);
 			cudaErrorCheck(__FILE__, __LINE__);
 			moveBodies<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], Damp, dt, t, NPerGPU, N, i);
