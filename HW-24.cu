@@ -44,13 +44,14 @@
 int N;
 int NPerGPU; // Amount of vector on each GPU.
 int NumberOfGpus;
+
 float3 *P, *V, *F;
 float *M; 
 
-float3 **PGPU = NULL;
+/*float3 **PGPU = NULL;
 float3 **VGPU = NULL;
 float3 **FGPU = NULL;
-float **MGPU = NULL;
+float **MGPU = NULL;*/
 
 float GlobeRadius, Diameter, Radius;
 float Damp;
@@ -85,7 +86,7 @@ void drawPicture()
 	glClear(GL_DEPTH_BUFFER_BIT);
 	
 	cudaSetDevice(0);
-	cudaMemcpyAsync(P, PGPU[0], N*sizeof(float3), cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	glColor3d(1.0,1.0,0.5);
@@ -121,7 +122,7 @@ void setup()
 	}
 	
 	// Using % to find how far off N is from prefectly dividing N. Then making sure there is enough blocks to cover this. 
-	NPerGPU = (N + (N%NumberOfGpus))/NumberOfGpus;
+	NPerGPU = (N + NumberOfGpus - 1))/NumberOfGpus;
 		
 	BlockSize.x = 128;
 	BlockSize.y = 1;
@@ -131,19 +132,19 @@ void setup()
 	GridSize.y = 1;
 	GridSize.z = 1;
 	
-    	Damp = 0.5;
+    Damp = 0.5;
     	
-    	M = (float*)malloc(N*sizeof(float));
-    	P = (float3*)malloc(N*sizeof(float3));
-    	V = (float3*)malloc(N*sizeof(float3));
-    	F = (float3*)malloc(N*sizeof(float3));
+    cudaMallocManaged(&M, N*sizeof(float));
+    cudaMallocManaged(&P, N*sizeof(float3));
+    cudaMallocManaged(&V, N*sizeof(float3));
+    cudaMallocManaged(&F, N*sizeof(float3));
     	
     	// !! Important: Setting the number of bodies a little bigger if it is not even or you will 
     	// get a core dump because you will be copying memory you do not own. This only needs to be
     	// done for positions but I did it for all for completeness encase the code gets used for a
     	// more complicated force function.
     	
-    	int nn = NumberOfGpus*NPerGPU; // This will be N%NumberOfGpus bigger than N to keep us in bounds.
+   /* int nn = NumberOfGpus*NPerGPU; // This will be N%NumberOfGpus bigger than N to keep us in bounds.
     	
     	// Allocating the first pointers that point to M, P, V, and F of the GPUs but actually reside on the CPU
     	MGPU = (float**)malloc(NumberOfGpus * sizeof(float*));
@@ -155,7 +156,7 @@ void setup()
     	for(int i = 0; i < NumberOfGpus; i++)
     	{
 		cudaSetDevice(i);
-	    	cudaMalloc(&MGPU[i],nn*sizeof(float));
+	    cudaMalloc(&MGPU[i],nn*sizeof(float));
 		cudaErrorCheck(__FILE__, __LINE__);
 		cudaMalloc(&PGPU[i],nn*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
@@ -163,13 +164,14 @@ void setup()
 		cudaErrorCheck(__FILE__, __LINE__);
 		cudaMalloc(&FGPU[i],nn*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
-	}
+	}*/
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
 	Radius = Diameter/2.0;
 	
 	// Using the radius of a body and a 68% packing ratio to find the radius of a global sphere that should hold all the bodies.
 	// Then we double this radius just so we can get all the bodies setup with no problems. 
+
 	float totalVolume = float(N)*(4.0/3.0)*PI*Radius*Radius*Radius;
 	totalVolume /= 0.68;
 	float totalRadius = pow(3.0*totalVolume/(4.0*PI), 1.0/3.0);
@@ -191,6 +193,7 @@ void setup()
 			
 			// Making sure the body centers are at least a diameter apart.
 			// If they are not throw these positions away and try again.
+
 			test = 1;
 			for(int j = 0; j < i; j++)
 			{
@@ -217,10 +220,10 @@ void setup()
 		M[i] = 1.0;
 	}
 	
-	for(int i = 0; i < NumberOfGpus; i++)
+	/*for(int i = 0; i < NumberOfGpus; i++)
     	{
 		cudaSetDevice(i);
-	    	cudaMemcpyAsync(PGPU[i], P, N*sizeof(float3), cudaMemcpyHostToDevice);
+	    cudaMemcpyAsync(PGPU[i], P, N*sizeof(float3), cudaMemcpyHostToDevice);
 		cudaErrorCheck(__FILE__, __LINE__);
 		cudaMemcpyAsync(VGPU[i], V, N*sizeof(float3), cudaMemcpyHostToDevice);
 		cudaErrorCheck(__FILE__, __LINE__);
@@ -228,7 +231,7 @@ void setup()
 		cudaErrorCheck(__FILE__, __LINE__);
 		cudaMemcpyAsync(MGPU[i], M, N*sizeof(float), cudaMemcpyHostToDevice);
 		cudaErrorCheck(__FILE__, __LINE__);
-	}
+	}*/
 		
 	printf("\n Setup finished.\n");
 }
@@ -238,8 +241,8 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 	float dx, dy, dz,d,d2;
 	float force_mag;
 	
-	int offset = nPerGPU*device;
-	int i = threadIdx.x + blockDim.x*blockIdx.x + offset;
+	int offset = nPerGPU * device;
+	int i = threadIdx.x + blockDim.x * blockIdx.x + offset;
 	
 	if(i < n)
 	{
@@ -251,9 +254,9 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 		{
 			if(i != j)
 			{
-				dx = p[j].x-p[i].x;
-				dy = p[j].y-p[i].y;
-				dz = p[j].z-p[i].z;
+				dx = p[j].x - p[i].x;
+				dy = p[j].y - p[i].y;
+				dz = p[j].z - p[i].z;
 				d2 = dx*dx + dy*dy + dz*dz;
 				d  = sqrt(d2);
 				
@@ -306,8 +309,8 @@ void nBody()
 		for(int i = 0; i < NumberOfGpus; i++)
     		{
 			cudaSetDevice(i);
-			int start = i * ;
-			int end = min (start +  , );
+			int start = i * NPerGPU;
+			int end = min (start +  NPerGPU, N);
 			int size = end - start;
 
 			cudaMemPrefetchAsync(&P[start], size*sizeof(float3), i);
@@ -315,9 +318,9 @@ void nBody()
 			cudaMemPrefetchAsync(&F[start], size*sizeof(float3), i);
 			cudaMemPrefetchAsync(&M[start], size*sizeof(float), i);
 
-			getForces<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], G, H, NPerGPU, N, i);
+			getForces<<<GridSize,BlockSize>>>(P, V, F, M, G, H, NPerGPU, N, i);
 			cudaErrorCheck(__FILE__, __LINE__);
-			moveBodies<<<GridSize,BlockSize>>>(PGPU[i], VGPU[i], FGPU[i], MGPU[i], Damp, dt, t, NPerGPU, N, i);
+			moveBodies<<<GridSize,BlockSize>>>(P, V, F, M, Damp, dt, t, NPerGPU, N, i);
 			cudaErrorCheck(__FILE__, __LINE__);
 		}
 		
@@ -330,7 +333,7 @@ void nBody()
 		}
 		
 		// Copying memory between GPUs.
-		for(int i = 0; i < NumberOfGpus; i++)
+		/*for(int i = 0; i < NumberOfGpus; i++)
     		{
 			cudaSetDevice(i);
 			for(int j = 0; j < NumberOfGpus; j++)
@@ -349,7 +352,9 @@ void nBody()
 			cudaSetDevice(i);
 			cudaDeviceSynchronize();
 			cudaErrorCheck(__FILE__, __LINE__);
-		}
+		}*/
+		//Added for the prefetch back for the rendering
+		cudaMemPrefetchAsync(P, N*sizeof(float3), cudaCpuDeviceId);
 
 		if(drawCount == DRAW_RATE) 
 		{	
