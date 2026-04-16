@@ -18,10 +18,13 @@
 
 // Include files
 #include <GL/glut.h>
+#include <GL/glu.h>
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+
 #include <cuda_runtime.h>
 
 // Defines
@@ -85,7 +88,7 @@ void drawPicture()
 	glClear(GL_COLOR_BUFFER_BIT);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	
-	cudaSetDevice(0);
+	//cudaSetDevice(0);
 	cudaDeviceSynchronize();
 	cudaErrorCheck(__FILE__, __LINE__);
 	
@@ -133,7 +136,7 @@ void setup()
 	GridSize.z = 1;
 	
     Damp = 0.5;
-    	
+    //Unified Memory
     cudaMallocManaged(&M, N*sizeof(float));
     cudaMallocManaged(&P, N*sizeof(float3));
     cudaMallocManaged(&V, N*sizeof(float3));
@@ -184,7 +187,7 @@ void setup()
 		while(test == 0)
 		{
 			// Get random position.
-			randomAngle1 = ((float)rand()/(float)RAND_MAX)*2.0*PI;
+			randomAngle1 = ((float)rand()/(float)RAND_MAX)*2.0f*PI;
 			randomAngle2 = ((float)rand()/(float)RAND_MAX)*PI;
 			randomRadius = ((float)rand()/(float)RAND_MAX)*GlobeRadius;
 			P[i].x = randomRadius*cos(randomAngle1)*sin(randomAngle2);
@@ -355,7 +358,7 @@ void nBody()
 			cudaErrorCheck(__FILE__, __LINE__);
 		}*/
 		//Added for the prefetch back for the rendering
-		cudaMemPrefetchAsync(P, N*sizeof(float3), cudaCpuDeviceId);
+		cudaMemPrefetchAsync(P, N * sizeof(float3), cudaCpuDeviceId);
 
 		if(drawCount == DRAW_RATE) 
 		{	
