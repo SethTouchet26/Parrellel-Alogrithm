@@ -122,7 +122,7 @@ void setup()
 	}
 	
 	// Using % to find how far off N is from prefectly dividing N. Then making sure there is enough blocks to cover this. 
-	NPerGPU = (N + NumberOfGpus - 1))/NumberOfGpus;
+	NPerGPU = (N + NumberOfGpus - 1)/NumberOfGpus;
 		
 	BlockSize.x = 128;
 	BlockSize.y = 1;
@@ -310,7 +310,8 @@ void nBody()
     		{
 			cudaSetDevice(i);
 			int start = i * NPerGPU;
-			int end = min (start +  NPerGPU, N);
+			int end = start +  NPerGPU;
+			if (end > N) end = N;
 			int size = end - start;
 
 			cudaMemPrefetchAsync(&P[start], size*sizeof(float3), i);
