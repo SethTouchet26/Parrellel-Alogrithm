@@ -176,14 +176,14 @@ void setup()
 		M[i] = 1.0;
 	}
 	
-	cudaMemcpyAsync(PGPU, P, N*sizeof(float3), cudaMemcpyHostToDevice);
+	/*cudaMemcpyAsync(PGPU, P, N*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(VGPU, V, N*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(FGPU, F, N*sizeof(float3), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
+	cudaErrorCheck(__FILE__, __LINE__);*/
 }
 
 __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n, int offset, int Ntotal)
@@ -193,7 +193,7 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 	
 	int i = offset + threadIdx.x + blockDim.x*  blockIdx.x;
 	
-	if(i >= offset + n) return;
+	if(i < offset || i >= offset + n) return;
 	
 	f[i].x = 0.0f;
 	f[i].y = 0.0f;
@@ -222,7 +222,7 @@ __global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp
 {	
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
 	
-	if(i >= offset + n)
+	if(i < offset || i >= offset + n) return;
 	{
 		if(t == 0.0f)
 		{
@@ -273,7 +273,7 @@ void nBody()
 		cudaSetDevice(1);
 		getForces<<<GridSize,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], G, H, N1, N0, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], Damp, dt, t, N1 , N0);
+		moveBodies<<<GridSize,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], Damp, dt, t, N1 , N0);
 		cudaErrorCheck(__FILE__, __LINE__);
 
 		cudaDeviceSynchronize();
