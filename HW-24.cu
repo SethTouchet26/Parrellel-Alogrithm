@@ -122,6 +122,14 @@ void setup()
 		cudaMalloc(&FGPU[d],N*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
 	}
+	for(int d = 0; d < 2; d++)
+		{
+			cudaSetDevice(d);
+			cudaMemcpy(&PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(&FGPU[d], F, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(&VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(&MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
+		}
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
 	Radius = Diameter/2.0;
@@ -193,7 +201,7 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 	
 	int i = offset + threadIdx.x + blockDim.x*  blockIdx.x;
 	
-	if(i < offset || i >= offset + n) return;
+	if(i >= offset + n) return;
 	
 	f[i].x = 0.0f;
 	f[i].y = 0.0f;
@@ -222,7 +230,7 @@ __global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp
 {	
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
 	
-	if(i < offset || i >= offset + n) return;
+	if(i >= offset + n) return;
 	{
 		if(t == 0.0f)
 		{
@@ -252,8 +260,8 @@ void nBody()
 	int N0 = N / 2;
 	int N1 = N - N0;
 
-	dim3 grid0((N0 - 1)/ BlockSize.x +1);
-	dim3 grid1((N1 - 1)/ BlockSize.x +1);
+	dim3 grid0((N0 + BLOCK_SIZE - 1)/ BLOCK_SIZE);
+	dim3 grid1((N1 + BLOCK_SIZE - 1)/ BLOCK_SIZE);
 
 	while(t < RUN_TIME)
 	{
@@ -261,31 +269,24 @@ void nBody()
 		{
 			cudaSetDevice(d);
 			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
+			
 		}
 		cudaSetDevice(0);
-		getForces<<<GridSize,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], G, H, N0, 0, N);
+		getForces<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], G, H, N0, 0, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], Damp, dt, t, N0 ,0);
+		moveBodies<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], Damp, dt, t, N0 ,0);
 		cudaErrorCheck(__FILE__, __LINE__);
 		
 		cudaSetDevice(1);
-		getForces<<<GridSize,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], G, H, N1, N0, N);
+		getForces<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], G, H, N1, N0, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], Damp, dt, t, N1 , N0);
+		moveBodies<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], Damp, dt, t, N1 , N0);
 		cudaErrorCheck(__FILE__, __LINE__);
 
 		cudaDeviceSynchronize();
 
 		cudaMemcpy(P, PGPU[0], N*sizeof(float3), cudaMemcpyDeviceToHost);
-
-		float3 * tmp = (float3*)malloc(N*sizeof(float3));
-		cudaMemcpy(tmp, PGPU[1], N*sizeof(float3), cudaMemcpyDeviceToHost);
-
-		for(int i = N0; i < N; i++)
-			P[i] = tmp[i];
-		free(tmp);
+		cudaMemcpy(&P[N0], PGPU[1], N1*sizeof(float3), cudaMemcpyDeviceToHost);
 
 
 		if(drawCount == DRAW_RATE) 
