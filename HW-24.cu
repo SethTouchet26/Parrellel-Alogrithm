@@ -322,10 +322,11 @@ void nBody()
 			cudaMemPrefetchAsync(&F[start], size*sizeof(float3), i);
 			cudaMemPrefetchAsync(&M[start], size*sizeof(float), i);
 
-			getForces<<<GridSize,BlockSize>>>(P, V, F, M, G, H, NPerGPU, N, i);
+			getForces<<<GridSize,BlockSize>>>(P, V, F, M, G, H, size, N, i);
 			cudaErrorCheck(__FILE__, __LINE__);
-			moveBodies<<<GridSize,BlockSize>>>(P, V, F, M, Damp, dt, t, NPerGPU, N, i);
+			moveBodies<<<GridSize,BlockSize>>>(P, V, F, M, Damp, dt, t, size, N, i);
 			cudaErrorCheck(__FILE__, __LINE__);
+			cudaDeviceSynchronize();
 		}
 		
 		// Syncing CPU with GPUs.
