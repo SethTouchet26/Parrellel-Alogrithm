@@ -125,10 +125,10 @@ void setup()
 	for(int d = 0; d < 2; d++)
 		{
 			cudaSetDevice(d);
-			cudaMemcpy(&PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(&FGPU[d], F, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(&VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(&MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
+			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(FGPU[d], F, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
 		}
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
@@ -265,12 +265,19 @@ void nBody()
 
 	while(t < RUN_TIME)
 	{
-		for(int d = 0; d < 2; d++)
-		{
-			cudaSetDevice(d);
-			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
-			
-		}
+		
+		cudaSetDevice(0);
+		cudaMemcpy(PGPU[0], P, N0*sizeof(float3), cudaMemcpyHostToDevice);
+		cudaMemcpy(VGPU[0], V, N0*sizeof(float3), cudaMemcpyHostToDevice);
+		cudaMemcpy(MGPU[0], M, N0*sizeof(float), cudaMemcpyHostToDevice);
+
+		cudaSetDevice(1);
+		cudaMemcpy(PGPU[1], &P[N0], N1*sizeof(float3), cudaMemcpyHostToDevice);
+		cudaMemcpy(VGPU[1], &V[N0], N1*sizeof(float3), cudaMemcpyHostToDevice);
+		cudaMemcpy(MGPU[1], &M[N0], N1*sizeof(float), cudaMemcpyHostToDevice);
+
+		
+
 		cudaSetDevice(0);
 		getForces<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], G, H, N0, 0, N);
 		cudaErrorCheck(__FILE__, __LINE__);
@@ -285,7 +292,7 @@ void nBody()
 
 		cudaDeviceSynchronize();
 
-		cudaMemcpy(P, PGPU[0], N*sizeof(float3), cudaMemcpyDeviceToHost);
+		cudaMemcpy(P, PGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
 		cudaMemcpy(&P[N0], PGPU[1], N1*sizeof(float3), cudaMemcpyDeviceToHost);
 
 
@@ -349,4 +356,4 @@ int main(int argc, char** argv)
 	
 	glutMainLoop();
 	return 0;
-}
+}// FYI the reason this is late is due to that I was looking at NB un assignment that is due on the 21st.
