@@ -274,7 +274,7 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 
 __global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int nPerGPU, int n, int device)
 {
-	int offset = nPerGPU*device;	
+	int offset = nPerGPU * device;	
 	int i = threadIdx.x + blockDim.x*blockIdx.x + offset;
 	
 	if(i < n)
@@ -315,16 +315,17 @@ void nBody()
 			int start = i * NPerGPU;
 			int end = start +  NPerGPU;
 			if (end > N) end = N;
+
 			int size = end - start;
 
-			cudaMemPrefetchAsync(&P[start], size*sizeof(float3), i);
-			cudaMemPrefetchAsync(&V[start], size*sizeof(float3), i);
-			cudaMemPrefetchAsync(&F[start], size*sizeof(float3), i);
-			cudaMemPrefetchAsync(&M[start], size*sizeof(float), i);
+			cudaMemPrefetchAsync(&P[start], size * sizeof(float3), i);
+			cudaMemPrefetchAsync(&V[start], size * sizeof(float3), i);
+			cudaMemPrefetchAsync(&F[start], size * sizeof(float3), i);
+			cudaMemPrefetchAsync(&M[start], size * sizeof(float), i);
 
-			getForces<<<GridSize,BlockSize>>>(P, V, F, M, G, H, size, N, i);
+			getForces<<<GridSize,BlockSize>>>(P, V, F, M, G, H, NPerGPU, N, i);
 			cudaErrorCheck(__FILE__, __LINE__);
-			moveBodies<<<GridSize,BlockSize>>>(P, V, F, M, Damp, dt, t, size, N, i);
+			moveBodies<<<GridSize,BlockSize>>>(P, V, F, M, Damp, dt, t, NPerGPU, N, i);
 			cudaErrorCheck(__FILE__, __LINE__);
 			cudaDeviceSynchronize();
 		}
