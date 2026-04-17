@@ -73,8 +73,7 @@ void keyPressed(unsigned char key, int x, int y)
 {
 	if(key == 's')
 	{
-		printf("\n The simulation is running.\n");
-		timer();
+		DrawFlag = 1;
 	}
 	
 	if(key == 'q')
@@ -120,24 +119,11 @@ void drawPicture()
 
 void timer()
 {	
-	timeval start, end;
-	long computeTime;
-	
+	if (DrawFlag)
+	{
+		nBody();
+	}
 	drawPicture();
-	gettimeofday(&start, NULL);
-    nBody();
-
-    cudaSetDevice(0);
-	cudaDeviceSynchronize();
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaSetDevice(1);
-	cudaDeviceSynchronize();
-	cudaErrorCheck(__FILE__, __LINE__);
-    gettimeofday(&end, NULL);
-    drawPicture();
-    	
-	computeTime = elaspedTime(start, end);
-	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
 }
 
 void setup()
@@ -147,7 +133,8 @@ void setup()
     int test;
     	
     N = 1000;
-    	
+    DrawFlag = 0;
+
     BlockSize.x = BLOCK_SIZE;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
@@ -175,7 +162,7 @@ void setup()
 		cudaMalloc(&FGPU[d],N*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
 	}
-	/**/
+	
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
 	Radius = Diameter/2.0;
@@ -302,7 +289,7 @@ __global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp
 void nBody()
 {
 	int    drawCount = 0; 
-	float  t = 0.0;
+	float  t = 0.0f;
 	float dt = 0.0001;
 
 	int N0 = N / 2;
@@ -346,13 +333,13 @@ void nBody()
 		cudaMemcpy(P, PGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
 
 		cudaSetDevice(1);
-		cudaMemcpy(&P[N0], &PGPU[1][N0], N1*sizeof(float3), cudaMemcpyDeviceToHost);
+		cudaMemcpy(&P[N0], &PGPU[1]+N0, N1*sizeof(float3), cudaMemcpyDeviceToHost);
 
 		cudaSetDevice(0);
 		cudaMemcpy(V, VGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
 
 		cudaSetDevice(1);
-		cudaMemcpy(&V[N0], &VGPU[1][N0], N1*sizeof(float3), cudaMemcpyDeviceToHost);
+		cudaMemcpy(&V[N0], &VGPU[1]+N0, N1*sizeof(float3), cudaMemcpyDeviceToHost);
 
 		if(drawCount == DRAW_RATE) 
 		{	
