@@ -36,10 +36,6 @@ int N, DrawFlag;
 float3 *P, *V, *F;
 float *M; 
 
-void keyPressed(unsigned char, int, int);
-long elaspedTime(struct timeval, struct timeval);
-void timer();
-
 float3 *PGPU[2], *VGPU[2], *FGPU[2];
 float *MGPU[2];
 
@@ -50,6 +46,9 @@ dim3 GridSize;
 
 // Function prototypes
 void cudaErrorCheck(const char *, int);
+void keyPressed(unsigned char, int, int);
+long elaspedTime(struct timeval, struct timeval);
+void timer();
 void drawPicture();
 void setup();
 __global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int, int);
@@ -73,7 +72,7 @@ void keyPressed(unsigned char key, int x, int y)
 {
 	if(key == 's')
 	{
-		DrawFlag = 1;
+		timer();
 	}
 	
 	if(key == 'q')
@@ -119,11 +118,24 @@ void drawPicture()
 
 void timer()
 {	
-	if (DrawFlag)
-	{
-		nBody();
-	}
+	timeval start, end;
+	long computeTime;
+	
 	drawPicture();
+	gettimeofday(&start, NULL);
+    nBody();
+
+    cudaSetDevice(0);
+	cudaDeviceSynchronize();
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaSetDevice(1);
+	cudaDeviceSynchronize();
+	cudaErrorCheck(__FILE__, __LINE__);
+    gettimeofday(&end, NULL);
+    drawPicture();
+    	
+	computeTime = elaspedTime(start, end);
+	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
 }
 
 void setup()
@@ -290,7 +302,7 @@ void nBody()
 {
 	int    drawCount = 0; 
 	float  t = 0.0f;
-	float dt = 0.0001;
+	float dt = DT;
 
 	int N0 = N / 2;
 	int N1 = N - N0;
@@ -300,13 +312,13 @@ void nBody()
 
 	while(t < RUN_TIME)
 	{
-		/*for(int d = 0; d < 2; d++)
-		{
-			cudaSetDevice(d);
-			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
-		}*/
+		cudaSetDevice(0);
+		cudaMemcpyPeer(PGPU[0], 0, PGPU[1], 1, N*sizeof(float3));
+		cudaMemcpyPeer(VGPU[0], 0, VGPU[1], 1, N*sizeof(float3));
+		
+		cudaSetDevice(1);
+		cudaMemcpyPeer(PGPU[1], 1, PGPU[0], 0, N*sizeof(float3));
+		cudaMemcpyPeer(VGPU[1], 1, VGPU[0], 0, N*sizeof(float3));
 
 		// GPU 0
 		cudaSetDevice(0);
@@ -315,6 +327,8 @@ void nBody()
 		moveBodies<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], Damp, DT, t, N0, 0);
 		cudaErrorCheck(__FILE__, __LINE__);
 
+		cudaDeviceSynchronize();
+
 		// GPU 1
 		cudaSetDevice(1);
 		getForces<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], G, H, N1, N0, N);
@@ -322,24 +336,23 @@ void nBody()
 		moveBodies<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1],  MGPU[1], Damp, DT, t, N1, N0);
 		cudaErrorCheck(__FILE__, __LINE__);
 
+		cudaDeviceSynchronize();
+
+
+		cudaSetDevice(0);
+		cudaMemcpy(P, PGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
+		cudaMemcpy(V, VGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
+		
+		cudaSetDevice(1);
+		cudaMemcpy(&P[N0], PGPU[1], N1*sizeof(float3), cudaMemcpyDeviceToHost);
+		cudaMemcpy(&V[N0], VGPU[1], N1*sizeof(float3), cudaMemcpyDeviceToHost);
+
 		// sync BOTH GPUs
 		cudaSetDevice(0);
 		cudaDeviceSynchronize();
 
 		cudaSetDevice(1);
 		cudaDeviceSynchronize();
-
-		cudaSetDevice(0);
-		cudaMemcpy(P, PGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
-
-		cudaSetDevice(1);
-		cudaMemcpy(&P[N0], &PGPU[1]+N0, N1*sizeof(float3), cudaMemcpyDeviceToHost);
-
-		cudaSetDevice(0);
-		cudaMemcpy(V, VGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
-
-		cudaSetDevice(1);
-		cudaMemcpy(&V[N0], &VGPU[1]+N0, N1*sizeof(float3), cudaMemcpyDeviceToHost);
 
 		if(drawCount == DRAW_RATE) 
 		{	
