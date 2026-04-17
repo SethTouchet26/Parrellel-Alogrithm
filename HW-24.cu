@@ -36,6 +36,10 @@ int N;
 float3 *P, *V, *F;
 float *M; 
 
+void keyPressed(unsigned char, int, int);
+long elaspedTime(struct timeval, struct timeval);
+void timer();
+
 float3 *PGPU[2], *VGPU[2], *FGPU[2];
 float *MGPU[2];
 
@@ -48,8 +52,8 @@ dim3 GridSize;
 void cudaErrorCheck(const char *, int);
 void drawPicture();
 void setup();
-__global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int);
-__global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int);
+__global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int, int);
+__global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int, int);
 void nBody();
 int main(int, char**);
 
@@ -63,6 +67,33 @@ void cudaErrorCheck(const char *file, int line)
 		printf("\n CUDA ERROR: message = %s, File = %s, Line = %d\n", cudaGetErrorString(error), file, line);
 		exit(0);
 	}
+}
+
+void keyPressed(unsigned char key, int x, int y)
+{
+	if(key == 's')
+	{
+		printf("\n The simulation is running.\n");
+		timer();
+	}
+	
+	if(key == 'q')
+	{
+		exit(0);
+	}
+}
+
+// Calculating elasped time.
+long elaspedTime(struct timeval start, struct timeval end)
+{
+	// tv_sec = number of seconds past the Unix epoch 01/01/1970
+	// tv_usec = number of microseconds past the current second.
+	
+	long startTime = start.tv_sec * 1000000 + start.tv_usec; // In microseconds.
+	long endTime = end.tv_sec * 1000000 + end.tv_usec; // In microseconds
+
+	// Returning the total time elasped in microseconds
+	return endTime - startTime;
 }
 
 void drawPicture()
@@ -85,6 +116,28 @@ void drawPicture()
 	}
 	
 	glutSwapBuffers();
+}
+
+void timer()
+{	
+	timeval start, end;
+	long computeTime;
+	
+	drawPicture();
+	gettimeofday(&start, NULL);
+    nBody();
+
+    cudaSetDevice(0);
+	cudaDeviceSynchronize();
+	cudaErrorCheck(__FILE__, __LINE__);
+	cudaSetDevice(1);
+	cudaDeviceSynchronize();
+	cudaErrorCheck(__FILE__, __LINE__);
+    gettimeofday(&end, NULL);
+    drawPicture();
+    	
+	computeTime = elaspedTime(start, end);
+	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
 }
 
 void setup()
@@ -122,14 +175,14 @@ void setup()
 		cudaMalloc(&FGPU[d],N*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
 	}
-	for(int d = 0; d < 2; d++)
+	/*for(int d = 0; d < 2; d++)
 		{
 			cudaSetDevice(d);
 			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
 			cudaMemcpy(FGPU[d], F, N*sizeof(float3), cudaMemcpyHostToDevice);
 			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
 			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
-		}
+		}*/
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
 	Radius = Diameter/2.0;
@@ -192,6 +245,8 @@ void setup()
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);*/
+
+	printf("\n To start timing type s.\n");
 }
 
 __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n, int offset, int Ntotal)
@@ -199,7 +254,7 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 	float dx, dy, dz,d,d2;
 	float force_mag;
 	
-	int i = offset + threadIdx.x + blockDim.x*  blockIdx.x;
+	int i = offset + threadIdx.x + blockDim.x * blockIdx.x;
 	
 	if(i >= offset + n) return;
 	
@@ -228,27 +283,27 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 
 __global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int n, int offset)
 {	
-	int i = threadIdx.x + blockDim.x*blockIdx.x;
+	int i = offset + threadIdx.x + blockDim.x*blockIdx.x;
 	
 	if(i >= offset + n) return;
+	
+	if(t == 0.0f)
 	{
-		if(t == 0.0f)
-		{
-			v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt/2.0f;
-			v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt/2.0f;
-			v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt/2.0f;
-		}
-		else
-		{
-			v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt;
-			v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt;
-			v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt;
-		}
-
-		p[i].x += v[i].x*dt;
-		p[i].y += v[i].y*dt;
-		p[i].z += v[i].z*dt;
+		v[i].x += ((f[i].x - damp*v[i].x)/m[i])*dt/2.0f;
+		v[i].y += ((f[i].y - damp*v[i].y)/m[i])*dt/2.0f;
+		v[i].z += ((f[i].z - damp*v[i].z)/m[i])*dt/2.0f;
 	}
+	else
+	{
+		v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt;
+		v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt;
+		v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt;
+	}
+
+	p[i].x += v[i].x*dt;
+	p[i].y += v[i].y*dt;
+	p[i].z += v[i].z*dt;
+	
 }
 
 void nBody()
@@ -265,36 +320,40 @@ void nBody()
 
 	while(t < RUN_TIME)
 	{
-		
-		cudaSetDevice(0);
-		cudaMemcpy(PGPU[0], P, N0*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(VGPU[0], V, N0*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(MGPU[0], M, N0*sizeof(float), cudaMemcpyHostToDevice);
+		for(int d = 0; d < 2; d++)
+		{
+			cudaSetDevice(d);
+			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
+		}
 
-		cudaSetDevice(1);
-		cudaMemcpy(PGPU[1], &P[N0], N1*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(VGPU[1], &V[N0], N1*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(MGPU[1], &M[N0], N1*sizeof(float), cudaMemcpyHostToDevice);
-
-		
-
+		// GPU 0
 		cudaSetDevice(0);
 		getForces<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], G, H, N0, 0, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], Damp, dt, t, N0 ,0);
+		moveBodies<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], Damp, DT, t, N0, 0);
 		cudaErrorCheck(__FILE__, __LINE__);
-		
+
+		// GPU 1
 		cudaSetDevice(1);
 		getForces<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], G, H, N1, N0, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], Damp, dt, t, N1 , N0);
+		moveBodies<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1],  MGPU[1], Damp, DT, t, N1, N0);
 		cudaErrorCheck(__FILE__, __LINE__);
 
+		// sync BOTH GPUs
+		cudaSetDevice(0);
 		cudaDeviceSynchronize();
 
-		cudaMemcpy(P, PGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
-		cudaMemcpy(&P[N0], PGPU[1], N1*sizeof(float3), cudaMemcpyDeviceToHost);
+		cudaSetDevice(1);
+		cudaDeviceSynchronize();
 
+		cudaSetDevice(0);
+		cudaMemcpy(P, PGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
+
+		cudaSetDevice(1);
+		cudaMemcpy(&P[N0], &PGPU[1][N0], N1*sizeof(float3), cudaMemcpyDeviceToHost);
 
 		if(drawCount == DRAW_RATE) 
 		{	
@@ -340,8 +399,9 @@ int main(int argc, char** argv)
 	glEnable(GL_LIGHT0);
 	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_DEPTH_TEST);
+	glutKeyboardFunc(keyPressed);
 	glutDisplayFunc(drawPicture);
-	glutIdleFunc(nBody);
+	glutIdleFunc(NULL);
 	
 	float3 eye = {0.0f, 0.0f, 2.0f*GlobeRadius};
 	float near = 0.2;
