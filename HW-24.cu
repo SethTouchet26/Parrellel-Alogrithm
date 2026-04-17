@@ -127,10 +127,11 @@ void timer()
 
     cudaSetDevice(0);
 	cudaDeviceSynchronize();
-	cudaErrorCheck(__FILE__, __LINE__);
+	
 	cudaSetDevice(1);
 	cudaDeviceSynchronize();
-	cudaErrorCheck(__FILE__, __LINE__);
+	
+
     gettimeofday(&end, NULL);
     drawPicture();
     	
@@ -315,10 +316,10 @@ void nBody()
 		cudaSetDevice(0);
 		cudaMemcpyPeer(PGPU[0], 0, PGPU[1], 1, N*sizeof(float3));
 		cudaMemcpyPeer(VGPU[0], 0, VGPU[1], 1, N*sizeof(float3));
-		
-		cudaSetDevice(1);
+
+		/*cudaSetDevice(1);
 		cudaMemcpyPeer(PGPU[1], 1, PGPU[0], 0, N*sizeof(float3));
-		cudaMemcpyPeer(VGPU[1], 1, VGPU[0], 0, N*sizeof(float3));
+		cudaMemcpyPeer(VGPU[1], 1, VGPU[0], 0, N*sizeof(float3));*/
 
 		// GPU 0
 		cudaSetDevice(0);
@@ -403,7 +404,7 @@ int main(int argc, char** argv)
 	glEnable(GL_DEPTH_TEST);
 	glutKeyboardFunc(keyPressed);
 	glutDisplayFunc(drawPicture);
-	glutIdleFunc(timer);
+	glutIdleFunc(NULL);
 	
 	float3 eye = {0.0f, 0.0f, 2.0f*GlobeRadius};
 	float near = 0.2;
