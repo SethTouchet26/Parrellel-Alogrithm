@@ -32,7 +32,7 @@
 #define RUN_TIME 10.0
 
 // Globals
-int N;
+int N, DrawFlag;
 float3 *P, *V, *F;
 float *M; 
 
@@ -175,14 +175,7 @@ void setup()
 		cudaMalloc(&FGPU[d],N*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
 	}
-	/*for(int d = 0; d < 2; d++)
-		{
-			cudaSetDevice(d);
-			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(FGPU[d], F, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
-		}*/
+	/**/
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
 	Radius = Diameter/2.0;
@@ -237,14 +230,14 @@ void setup()
 		M[i] = 1.0;
 	}
 	
-	/*cudaMemcpyAsync(PGPU, P, N*sizeof(float3), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(VGPU, V, N*sizeof(float3), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(FGPU, F, N*sizeof(float3), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);*/
+	for(int d = 0; d < 2; d++)
+		{
+			cudaSetDevice(d);
+			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(FGPU[d], F, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
+			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
+		}
 
 	printf("\n To start timing type s.\n");
 }
@@ -320,13 +313,13 @@ void nBody()
 
 	while(t < RUN_TIME)
 	{
-		for(int d = 0; d < 2; d++)
+		/*for(int d = 0; d < 2; d++)
 		{
 			cudaSetDevice(d);
 			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
 			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
 			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
-		}
+		}*/
 
 		// GPU 0
 		cudaSetDevice(0);
@@ -355,9 +348,18 @@ void nBody()
 		cudaSetDevice(1);
 		cudaMemcpy(&P[N0], &PGPU[1][N0], N1*sizeof(float3), cudaMemcpyDeviceToHost);
 
+		cudaSetDevice(0);
+		cudaMemcpy(V, VGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
+
+		cudaSetDevice(1);
+		cudaMemcpy(&V[N0], &VGPU[1][N0], N1*sizeof(float3), cudaMemcpyDeviceToHost);
+
 		if(drawCount == DRAW_RATE) 
 		{	
-			drawPicture();
+			if(DrawFlag) 
+			{	
+				drawPicture();
+			}
 			drawCount = 0;
 		}
 		
@@ -401,7 +403,7 @@ int main(int argc, char** argv)
 	glEnable(GL_DEPTH_TEST);
 	glutKeyboardFunc(keyPressed);
 	glutDisplayFunc(drawPicture);
-	glutIdleFunc(NULL);
+	glutIdleFunc(timer);
 	
 	float3 eye = {0.0f, 0.0f, 2.0f*GlobeRadius};
 	float near = 0.2;
@@ -416,4 +418,4 @@ int main(int argc, char** argv)
 	
 	glutMainLoop();
 	return 0;
-}// FYI the reason this is late is due to that I was looking at NB un assignment that is due on the 21st.
+}
