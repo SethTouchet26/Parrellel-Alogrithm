@@ -1,11 +1,19 @@
 // Name:
-// nBody code on multiple GPUs. 
-// nvcc U_1GPU_To_2GPUs_NBody.cu -o temp -lglut -lm -lGLU -lGL
+// nBody run on all available GPUs. 
+// nvcc V_NbodyUnifiedMemoryPrefetch.cu -o temp -lglut -lm -lGLU -lGL
 
 /*
  What to do:
- This is some robust N-body code that runs on the GPU with all the bells and whistles removed. 
- Modify it so it runs on two GPUs.
+ This is some robust N-body code with all the bells and whistles removed. 
+ It automatically detects the number of available GPUs on the machine and runs using all of them.
+ Rewrite the code using CUDA unified memory to make it simpler and use cudaMemPrefetchAsyn to make
+ the memory movement faster.
+*/
+
+/*
+ Purpose:
+ To see how Nbody code is run on many GPUs and learn how to simplify it with unified memory then speed it up 
+ with prefectched memory.
 */
 
 // Include files
@@ -14,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <cuda_runtime.h>
 
 // Defines
 #define BLOCK_SIZE 128
@@ -29,15 +38,15 @@
 #define LJQ  4.0
 
 #define DT 0.0001
-#define RUN_TIME 10.0
+#define RUN_TIME 1.0
 
 // Globals
 int N;
+int NPerGPU; // Amount of vector on each GPU.
+int NumberOfGpus;
+
 float3 *P, *V, *F;
 float *M; 
-
-float3 *PGPU[2], *VGPU[2], *FGPU[2];
-float *MGPU[2];
 
 float GlobeRadius, Diameter, Radius;
 float Damp;
@@ -48,8 +57,8 @@ dim3 GridSize;
 void cudaErrorCheck(const char *, int);
 void drawPicture();
 void setup();
-__global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int);
-__global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int);
+__global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int, int);
+__global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int, int, int);
 void nBody();
 int main(int, char**);
 
@@ -65,18 +74,40 @@ void cudaErrorCheck(const char *file, int line)
 	}
 }
 
+void keyPressed(unsigned char key, int x, int y) // leave it alone
+{
+	if(key == 's')
+	{
+		timer();
+	}
+	
+	if(key == 'q')
+	{
+		exit(0);
+	}
+}
+
+// Calculating elasped time.
+long elaspedTime(struct timeval start, struct timeval end)
+{
+	// tv_sec = number of seconds past the Unix epoch 01/01/1970
+	// tv_usec = number of microseconds past the current second.
+	
+	long startTime = start.tv_sec * 1000000 + start.tv_usec; // In microseconds.
+	long endTime = end.tv_sec * 1000000 + end.tv_usec; // In microseconds
+
+	// Returning the total time elasped in microseconds
+	return endTime - startTime;
+}
+
 void drawPicture()
 {
-	int i;
-	
 	glClear(GL_COLOR_BUFFER_BIT);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	
-	/*cudaMemcpyAsync(P, PGPU, N*sizeof(float3), cudaMemcpyDeviceToHost);
-	cudaErrorCheck(__FILE__, __LINE__);*/
-	
 	glColor3d(1.0,1.0,0.5);
-	for(i=0; i<N; i++)
+	
+	for(int i=0; i<N; i++)
 	{
 		glPushMatrix();
 		glTranslatef(P[i].x, P[i].y, P[i].z);
@@ -87,49 +118,84 @@ void drawPicture()
 	glutSwapBuffers();
 }
 
+void timer() // leave it alone
+{	
+	timeval start, end;
+	long computeTime;
+	
+	drawPicture();
+	gettimeofday(&start, NULL);
+    		nBody();
+    	gettimeofday(&end, NULL);
+    	drawPicture();
+    	
+	computeTime = elaspedTime(start, end);
+	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
+}
+
 void setup()
 {
-    float randomAngle1, randomAngle2, randomRadius;
-    float d, dx, dy, dz;
-    int test;
-    	
-    N = 1000;
-    	
-    BlockSize.x = BLOCK_SIZE;
+    	float randomAngle1, randomAngle2, randomRadius;
+    	float d, dx, dy, dz;
+    	int test;
+	
+	N = 1001;
+	
+	cudaGetDeviceCount(&NumberOfGpus);
+	if(NumberOfGpus == 0)
+	{
+		printf("\n Dude, you don't even have a GPU. Sorry, you can't play with us. Call NVIDIA and buy a GPU — loser!\n");
+		exit(0);
+	}
+	else
+	{
+		printf("\n You will be running on %d GPU(s)\n", NumberOfGpus);
+	}
+	
+	// Using % to find how far off N is from prefectly dividing N. Then making sure there is enough blocks to cover this. 
+	NPerGPU = (N + (N % NumberOfGpus)) / NumberOfGpus;
+		
+	BlockSize.x = 128;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = (N - 1)/BlockSize.x + 1; //Makes enough blocks to deal with the whole vector.
+	GridSize.x = (NPerGPU - 1)/BlockSize.x + 1; // This gives us the correct number of blocks.
 	GridSize.y = 1;
 	GridSize.z = 1;
 	
     Damp = 0.5;
     	
-    M = (float*)malloc(N*sizeof(float));
-    P = (float3*)malloc(N*sizeof(float3));
-	V = (float3*)malloc(N*sizeof(float3));
-    F = (float3*)malloc(N*sizeof(float3));
-    for (int d = 0; d < 2; d++)	
-	{
-		cudaSetDevice(d);
-
-		cudaMalloc(&MGPU[d],N*sizeof(float));
+    cudaMallocManaged(&P, N*sizeof(float3));
+    cudaMallocManaged(&V, N*sizeof(float3));
+    cudaMallocManaged(&F, N*sizeof(float3));
+    cudaMallocManaged(&M, N*sizeof(float));
+    	
+    	// !! Important: Setting the number of bodies a little bigger if it is not even or you will 
+    	// get a core dump because you will be copying memory you do not own. This only needs to be
+    	// done for positions but I did it for all for completeness encase the code gets used for a
+    	// more complicated force function.
+    	
+    	int nn = NumberOfGpus * NPerGPU; // This will be N%NumberOfGpus bigger than N to keep us in bounds.
+    	
+    	// Allocating the first pointers that point to M, P, V, and F of the GPUs but actually reside on the CPU
+    	/*MGPU = (float**)malloc(NumberOfGpus * sizeof(float*));
+    	PGPU = (float3**)malloc(NumberOfGpus * sizeof(float3*));
+    	VGPU = (float3**)malloc(NumberOfGpus * sizeof(float3*));
+    	FGPU = (float3**)malloc(NumberOfGpus * sizeof(float3*));*/
+    	
+    	// Now pointing these to the apropriate spot on each GPU and cudaMallocing the full vector.
+    	/*for(int i = 0; i < NumberOfGpus; i++)
+    	{
+		cudaSetDevice(i);
+	    cudaMalloc(&MGPU[i],nn*sizeof(float));
 		cudaErrorCheck(__FILE__, __LINE__);
-		cudaMalloc(&PGPU[d],N*sizeof(float3));
+		cudaMalloc(&PGPU[i],nn*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
-		cudaMalloc(&VGPU[d],N*sizeof(float3));
+		cudaMalloc(&VGPU[i],nn*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
-		cudaMalloc(&FGPU[d],N*sizeof(float3));
+		cudaMalloc(&FGPU[i],nn*sizeof(float3));
 		cudaErrorCheck(__FILE__, __LINE__);
-	}
-	for(int d = 0; d < 2; d++)
-		{
-			cudaSetDevice(d);
-			cudaMemcpy(PGPU[d], P, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(FGPU[d], F, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(VGPU[d], V, N*sizeof(float3), cudaMemcpyHostToDevice);
-			cudaMemcpy(MGPU[d], M, N*sizeof(float), cudaMemcpyHostToDevice);
-		}
+	}*/
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
 	Radius = Diameter/2.0;
@@ -141,7 +207,7 @@ void setup()
 	float totalRadius = pow(3.0*totalVolume/(4.0*PI), 1.0/3.0);
 	GlobeRadius = 2.0*totalRadius;
 	
-	// Randomly setting these bodies in the glaobal sphere and setting the initial velosity, inotial force, and mass.
+	// Randomly setting these bodies in the global sphere and setting the initial velocity, initial force, and mass.
 	for(int i = 0; i < N; i++)
 	{
 		test = 0;
@@ -156,7 +222,7 @@ void setup()
 			P[i].y = randomRadius*sin(randomAngle1)*sin(randomAngle2);
 			P[i].z = randomRadius*cos(randomAngle2);
 			
-			// Making sure the balls centers are at least a diameter apart.
+			// Making sure the body centers are at least a diameter apart.
 			// If they are not throw these positions away and try again.
 			test = 1;
 			for(int j = 0; j < i; j++)
@@ -184,53 +250,61 @@ void setup()
 		M[i] = 1.0;
 	}
 	
-	/*cudaMemcpyAsync(PGPU, P, N*sizeof(float3), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(VGPU, V, N*sizeof(float3), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(FGPU, F, N*sizeof(float3), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice);
-	cudaErrorCheck(__FILE__, __LINE__);*/
+	/*for(int i = 0; i < NumberOfGpus; i++)
+    	{
+		cudaSetDevice(i);
+	    	cudaMemcpyAsync(PGPU[i], P, N*sizeof(float3), cudaMemcpyHostToDevice);
+		cudaErrorCheck(__FILE__, __LINE__);
+		cudaMemcpyAsync(VGPU[i], V, N*sizeof(float3), cudaMemcpyHostToDevice);
+		cudaErrorCheck(__FILE__, __LINE__);
+		cudaMemcpyAsync(FGPU[i], F, N*sizeof(float3), cudaMemcpyHostToDevice);
+		cudaErrorCheck(__FILE__, __LINE__);
+		cudaMemcpyAsync(MGPU[i], M, N*sizeof(float), cudaMemcpyHostToDevice);
+		cudaErrorCheck(__FILE__, __LINE__);
+	}*/
+		
+	printf("\n Setup finished.\n");
 }
 
-__global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n, int offset, int Ntotal)
+__global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int nPerGPU, int n, int device)
 {
 	float dx, dy, dz,d,d2;
 	float force_mag;
 	
-	int i = offset + threadIdx.x + blockDim.x*  blockIdx.x;
+	int offset = nPerGPU*device;
+	int i = threadIdx.x + blockDim.x*blockIdx.x + offset;
 	
-	if(i >= offset + n) return;
-	
-	f[i].x = 0.0f;
-	f[i].y = 0.0f;
-	f[i].z = 0.0f;
-		
-	for(int j = 0; j < Ntotal; j++)
+	if(i < n)
 	{
-		if(i != j)
+		f[i].x = 0.0f;
+		f[i].y = 0.0f;
+		f[i].z = 0.0f;
+		
+		for(int j = 0; j < n; j++)
 		{
-			dx = p[j].x-p[i].x;
-			dy = p[j].y-p[i].y;
-			dz = p[j].z-p[i].z;
-			d2 = dx*dx + dy*dy + dz*dz;
-			d  = sqrt(d2);
+			if(i != j)
+			{
+				dx = p[j].x-p[i].x;
+				dy = p[j].y-p[i].y;
+				dz = p[j].z-p[i].z;
+				d2 = dx*dx + dy*dy + dz*dz;
+				d  = sqrt(d2);
 				
-			force_mag  = (g*m[i]*m[j])/(d2) - (h*m[i]*m[j])/(d2*d2);
-			f[i].x += force_mag*dx/d;
-			f[i].y += force_mag*dy/d;
-			f[i].z += force_mag*dz/d;
+				force_mag  = (g*m[i]*m[j])/(d2) - (h*m[i]*m[j])/(d2*d2);
+				f[i].x += force_mag*dx/d;
+				f[i].y += force_mag*dy/d;
+				f[i].z += force_mag*dz/d;
+			}
 		}
 	}
-	
 }
 
-__global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int n, int offset)
-{	
-	int i = threadIdx.x + blockDim.x*blockIdx.x;
+__global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int nPerGPU, int n, int device)
+{
+	int offset = nPerGPU*device;	
+	int i = threadIdx.x + blockDim.x*blockIdx.x + offset;
 	
-	if(i >= offset + n) return;
+	if(i < n)
 	{
 		if(t == 0.0f)
 		{
@@ -256,45 +330,58 @@ void nBody()
 	int    drawCount = 0; 
 	float  t = 0.0;
 	float dt = 0.0001;
-
-	int N0 = N / 2;
-	int N1 = N - N0;
-
-	dim3 grid0((N0 + BLOCK_SIZE - 1)/ BLOCK_SIZE);
-	dim3 grid1((N1 + BLOCK_SIZE - 1)/ BLOCK_SIZE);
-
+	
+	printf("\n Simulation is running with %d bodies.\n", N);
+	
 	while(t < RUN_TIME)
 	{
+		// Adjusting bodies
+		for(int i = 0; i < NumberOfGpus; i++)
+    		{
+			cudaSetDevice(i);
+
+			cudaMemPrefetchAsync(P, N*sizeof(float3), i);
+            cudaMemPrefetchAsync(V, N*sizeof(float3), i);
+            cudaMemPrefetchAsync(F, N*sizeof(float3), i);
+            cudaMemPrefetchAsync(M, N*sizeof(float), i);
+
+			getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,i)
+			cudaErrorCheck(__FILE__, __LINE__);
+			moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,dt,t,NPerGPU,N,i);
+			cudaErrorCheck(__FILE__, __LINE__);
+			}
 		
-		cudaSetDevice(0);
-		cudaMemcpy(PGPU[0], P, N0*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(VGPU[0], V, N0*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(MGPU[0], M, N0*sizeof(float), cudaMemcpyHostToDevice);
-
-		cudaSetDevice(1);
-		cudaMemcpy(PGPU[1], &P[N0], N1*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(VGPU[1], &V[N0], N1*sizeof(float3), cudaMemcpyHostToDevice);
-		cudaMemcpy(MGPU[1], &M[N0], N1*sizeof(float), cudaMemcpyHostToDevice);
-
+		// Syncing CPU with GPUs.
+		for(int i = 0; i < NumberOfGpus; i++)
+    		{
+			cudaSetDevice(i);
+			cudaDeviceSynchronize();
+			cudaErrorCheck(__FILE__, __LINE__);
+		}
 		
-
-		cudaSetDevice(0);
-		getForces<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], G, H, N0, 0, N);
-		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<grid0,BlockSize>>>(PGPU[0], VGPU[0], FGPU[0], MGPU[0], Damp, dt, t, N0 ,0);
-		cudaErrorCheck(__FILE__, __LINE__);
+		// Copying memory between GPUs.
+		/*for(int i = 0; i < NumberOfGpus; i++)
+    		{
+			cudaSetDevice(i);
+			for(int j = 0; j < NumberOfGpus; j++)
+    			{
+    				if(i != j)
+    				{
+					cudaMemcpyAsync(&PGPU[j][i*NPerGPU], &PGPU[i][i*NPerGPU], NPerGPU*sizeof(float3), cudaMemcpyDeviceToDevice);
+					cudaErrorCheck(__FILE__, __LINE__);
+				}
+			}
+		}
 		
-		cudaSetDevice(1);
-		getForces<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], G, H, N1, N0, N);
-		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<grid1,BlockSize>>>(PGPU[1], VGPU[1], FGPU[1], MGPU[1], Damp, dt, t, N1 , N0);
-		cudaErrorCheck(__FILE__, __LINE__);
+		// Syncing CPU with GPUs.
+		for(int i = 0; i < NumberOfGpus; i++)
+    		{
+			cudaSetDevice(i);
+			cudaDeviceSynchronize();
+			cudaErrorCheck(__FILE__, __LINE__);
+		}*/
 
-		cudaDeviceSynchronize();
-
-		cudaMemcpy(P, PGPU[0], N0*sizeof(float3), cudaMemcpyDeviceToHost);
-		cudaMemcpy(&P[N0], PGPU[1], N1*sizeof(float3), cudaMemcpyDeviceToHost);
-
+		cudaMemPrefetchAsync(P, N*sizeof(float3), cudaCpuDeviceId);
 
 		if(drawCount == DRAW_RATE) 
 		{	
@@ -318,7 +405,7 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGB);
 	glutInitWindowSize(XWindowSize,YWindowSize);
 	glutInitWindowPosition(0,0);
-	glutCreateWindow("Nbody Two GPUs");
+	glutCreateWindow("Nbody");
 	GLfloat light_position[] = {1.0, 1.0, 1.0, 0.0};
 	GLfloat light_ambient[]  = {0.0, 0.0, 0.0, 1.0};
 	GLfloat light_diffuse[]  = {1.0, 1.0, 1.0, 1.0};
@@ -357,3 +444,4 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
+
