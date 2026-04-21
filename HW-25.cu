@@ -274,34 +274,37 @@ void setup()
 
 __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int nPerGPU, int n, int device)
 {
-	float dx, dy, dz,d,d2;
-	float force_mag;
-	
 	//int offset = nPerGPU*device;
 	int i = threadIdx.x + blockDim.x*blockIdx.x + (device * nPerGPU);
 	
 	if(i < n)
 	{
-		f[i].x = 0.0f;
+		float dx, dy, dz,d,d2;
+		float force_mag;
+		float3 f_total = {0.0f, 0.0f, 0.0f};
+		float3 pi = p[i];
+
+		/*f[i].x = 0.0f;
 		f[i].y = 0.0f;
-		f[i].z = 0.0f;
+		f[i].z = 0.0f;*/
 		
 		for(int j = 0; j < n; j++)
 		{
 			if(i != j)
 			{
-				dx = p[j].x-p[i].x;
-				dy = p[j].y-p[i].y;
-				dz = p[j].z-p[i].z;
-				d2 = dx*dx + dy*dy + dz*dz;
+				dx = p[j].x-pi.x;
+				dy = p[j].y-pi.y;
+				dz = p[j].z-pi.z;
+				d2 = dx*dx + dy*dy + dz*dz + 0.0001f;
 				d  = sqrt(d2);
 				
 				force_mag  = (g*m[i]*m[j])/(d2) - (h*m[i]*m[j])/(d2*d2);
-				f[i].x += force_mag*dx/d;
-				f[i].y += force_mag*dy/d;
-				f[i].z += force_mag*dz/d;
+				f_total.x += force_mag*dx/d;
+				f_total.y += force_mag*dy/d;
+				f_total.z += force_mag*dz/d;
 			}
 		}
+		f[i] = f_total;
 	}
 }
 
@@ -339,6 +342,12 @@ void nBody()
 	
 	printf("\n Simulation is running with %d bodies on %d GPUs.\n", N, NumberOfGpus);
 
+	for(int device = 0; device < NumberOfGpus; device++)
+		{
+		cudaSetDevice(device);
+   		cudaMemPrefetchAsync(M, N*sizeof(float), device);
+		}
+
 	while(t < RUN_TIME)
 	{
 		// Adjusting bodies
@@ -347,22 +356,39 @@ void nBody()
 		cudaSetDevice(device);
 
 		cudaMemPrefetchAsync(P, N*sizeof(float3), device);
-   		cudaMemPrefetchAsync(M, N*sizeof(float), device);
+   		//cudaMemPrefetchAsync(M, N*sizeof(float), device);
 		
 		int offset = device * NPerGPU;
 		int count = (offset + NPerGPU > N) ? (N - offset) : NPerGPU;
 		if (count > 0)
 			{
-				cudaMemPrefetchAsync(&V[offset], count*sizeof(float3), device);
+				//cudaMemPrefetchAsync(&V[offset], count*sizeof(float3), device);
     			cudaMemPrefetchAsync(&F[offset], count*sizeof(float3), device);
 
-				getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,0);
-				cudaErrorCheck(__FILE__, __LINE__);
-				moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,DT,t,NPerGPU,N,0);
+				getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,device);
 				cudaErrorCheck(__FILE__, __LINE__);
 			}
+		}
+		for(int device = 0; device < NumberOfGpus; device++)
+    	{
+			cudaSetDevice(device);
+			cudaDeviceSynchronize();
+			cudaErrorCheck(__FILE__, __LINE__);
+		}
 
-		
+		for(int device = 0; device < NumberOfGpus; device++)
+		{
+		cudaSetDevice(device);
+		int offset = device * NPerGPU;
+		int count = (offset + NPerGPU > N) ? (N - offset) : NPerGPU;
+		if (count > 0)
+			{
+				//cudaMemPrefetchAsync(&V[offset], count*sizeof(float3), device);
+    			cudaMemPrefetchAsync(&V[offset], count*sizeof(float3), device);
+
+				moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,DT,t,NPerGPU,N,device);
+				cudaErrorCheck(__FILE__, __LINE__);
+			}
 		}
 
 		// Syncing CPU with GPUs.
@@ -460,3 +486,4 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
+
