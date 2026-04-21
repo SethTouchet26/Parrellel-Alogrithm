@@ -1,4 +1,4 @@
-// Name:
+// Name: Seth Touchet
 // nBody run on all available GPUs. 
 // nvcc V_NbodyUnifiedMemoryPrefetch.cu -o temp -lglut -lm -lGLU -lGL
 
@@ -37,7 +37,7 @@
 #define LJP  2.0
 #define LJQ  4.0
 
-#define DT 0.0001
+#define DT 0.001
 #define RUN_TIME 1.0
 
 // Globals
@@ -57,6 +57,8 @@ dim3 GridSize;
 void cudaErrorCheck(const char *, int);
 void drawPicture();
 void setup();
+void timer();
+void keyPressed(unsigned char, int, int);
 __global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int, int);
 __global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int, int, int);
 void nBody();
@@ -100,6 +102,22 @@ long elaspedTime(struct timeval start, struct timeval end)
 	return endTime - startTime;
 }
 
+void timer() // leave it alone
+{	
+	timeval start, end;
+	long computeTime;
+	
+	drawPicture();
+	gettimeofday(&start, NULL);
+    nBody();
+    gettimeofday(&end, NULL);
+    drawPicture();
+    	
+	computeTime = elaspedTime(start, end);
+	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
+}
+
+
 void drawPicture()
 {
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -116,21 +134,6 @@ void drawPicture()
 	}
 	
 	glutSwapBuffers();
-}
-
-void timer() // leave it alone
-{	
-	timeval start, end;
-	long computeTime;
-	
-	drawPicture();
-	gettimeofday(&start, NULL);
-    		nBody();
-    	gettimeofday(&end, NULL);
-    	drawPicture();
-    	
-	computeTime = elaspedTime(start, end);
-	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
 }
 
 void setup()
@@ -175,7 +178,7 @@ void setup()
     	// done for positions but I did it for all for completeness encase the code gets used for a
     	// more complicated force function.
     	
-    	int nn = NumberOfGpus * NPerGPU; // This will be N%NumberOfGpus bigger than N to keep us in bounds.
+    	//int nn = NumberOfGpus * NPerGPU; // This will be N%NumberOfGpus bigger than N to keep us in bounds.
     	
     	// Allocating the first pointers that point to M, P, V, and F of the GPUs but actually reside on the CPU
     	/*MGPU = (float**)malloc(NumberOfGpus * sizeof(float*));
@@ -329,35 +332,38 @@ void nBody()
 {
 	int    drawCount = 0; 
 	float  t = 0.0;
-	float dt = 0.0001;
+	float dt = DT;
 	
 	printf("\n Simulation is running with %d bodies.\n", N);
+
+	int device = 0;
+	cudaSetDevice(device);
 	
 	while(t < RUN_TIME)
 	{
 		// Adjusting bodies
 		for(int i = 0; i < NumberOfGpus; i++)
     		{
-			cudaSetDevice(i);
-
 			cudaMemPrefetchAsync(P, N*sizeof(float3), i);
             cudaMemPrefetchAsync(V, N*sizeof(float3), i);
             cudaMemPrefetchAsync(F, N*sizeof(float3), i);
             cudaMemPrefetchAsync(M, N*sizeof(float), i);
 
-			getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,i)
+			getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,i);
 			cudaErrorCheck(__FILE__, __LINE__);
 			moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,dt,t,NPerGPU,N,i);
 			cudaErrorCheck(__FILE__, __LINE__);
+
+			cudaDeviceSynchronize();
 			}
 		
 		// Syncing CPU with GPUs.
-		for(int i = 0; i < NumberOfGpus; i++)
+		/*for(int i = 0; i < NumberOfGpus; i++)
     		{
 			cudaSetDevice(i);
 			cudaDeviceSynchronize();
 			cudaErrorCheck(__FILE__, __LINE__);
-		}
+		}*/
 		
 		// Copying memory between GPUs.
 		/*for(int i = 0; i < NumberOfGpus; i++)
@@ -382,6 +388,7 @@ void nBody()
 		}*/
 
 		cudaMemPrefetchAsync(P, N*sizeof(float3), cudaCpuDeviceId);
+		cudaDeviceSynchronize();
 
 		if(drawCount == DRAW_RATE) 
 		{	
@@ -428,7 +435,8 @@ int main(int argc, char** argv)
 	glEnable(GL_COLOR_MATERIAL);
 	glEnable(GL_DEPTH_TEST);
 	glutDisplayFunc(drawPicture);
-	glutIdleFunc(nBody);
+	glutKeyboardFunc(keyPressed);
+	glutIdleFunc(NULL);
 	
 	float3 eye = {0.0f, 0.0f, 2.0f*GlobeRadius};
 	float near = 0.2;
