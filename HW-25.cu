@@ -157,13 +157,13 @@ void setup()
 	}
 	
 	// Using % to find how far off N is from prefectly dividing N. Then making sure there is enough blocks to cover this. 
-	NPerGPU = (N + (N % NumberOfGpus)) / NumberOfGpus;
+	NPerGPU = (N + NumberOfGpus - 1) / NumberOfGpus;
 		
 	BlockSize.x = 128;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = (N - 1)/BlockSize.x + 1; // This gives us the correct number of blocks.
+	GridSize.x = (NPerGPU + BlockSize.x - 1)/BlockSize.x; // This gives us the correct number of blocks.
 	GridSize.y = 1;
 	GridSize.z = 1;
 	
@@ -173,6 +173,8 @@ void setup()
     cudaMallocManaged(&V, N*sizeof(float3));
     cudaMallocManaged(&F, N*sizeof(float3));
     cudaMallocManaged(&M, N*sizeof(float));
+	cudaErrorCheck(__FILE__, __LINE__);
+
     	
     	// !! Important: Setting the number of bodies a little bigger if it is not even or you will 
     	// get a core dump because you will be copying memory you do not own. This only needs to be
@@ -275,8 +277,8 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 	float dx, dy, dz,d,d2;
 	float force_mag;
 	
-	int offset = nPerGPU*device;
-	int i = threadIdx.x + blockDim.x*blockIdx.x + offset;
+	//int offset = nPerGPU*device;
+	int i = threadIdx.x + blockDim.x*blockIdx.x + (device * nPerGPU);
 	
 	if(i < n)
 	{
@@ -305,8 +307,8 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 
 __global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int nPerGPU, int n, int device)
 {
-	int offset = nPerGPU*device;	
-	int i = threadIdx.x + blockDim.x*blockIdx.x + offset;
+	//int offset = nPerGPU*device;	
+	int i = threadIdx.x + blockDim.x*blockIdx.x + (device * nPerGPU);
 	
 	if(i < n)
 	{
@@ -333,28 +335,35 @@ void nBody()
 {
 	int    drawCount = 0; 
 	float  t = 0.0;
-	float dt = DT;
+	//float dt = DT;
 	
-	printf("\n Simulation is running with %d bodies.\n", N);
+	printf("\n Simulation is running with %d bodies on %d GPUs.\n", N, NumberOfGpus);
 
-	int device = 0;
-	cudaSetDevice(device);
-
-	cudaMemPrefetchAsync(P, N*sizeof(float3), device);
-    cudaMemPrefetchAsync(V, N*sizeof(float3), device);
-    cudaMemPrefetchAsync(F, N*sizeof(float3), device);
-    cudaMemPrefetchAsync(M, N*sizeof(float), device);
-
-	cudaDeviceSynchronize();
-	
 	while(t < RUN_TIME)
 	{
 		// Adjusting bodies
-	
-		getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,0);
-		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,dt,t,NPerGPU,N,0);
-		cudaErrorCheck(__FILE__, __LINE__);
+		for(int device = 0; device < NumberOfGpus; device++)
+		{
+		cudaSetDevice(device);
+
+		cudaMemPrefetchAsync(P, N*sizeof(float3), device);
+   		cudaMemPrefetchAsync(M, N*sizeof(float), device);
+		
+		int offset = device * NPerGPU;
+		int count = (offset + NPerGPU > N) ? (N - offset) : NPerGPU;
+		if (count > 0)
+			{
+				cudaMemPrefetchAsync(&V[offset], count*sizeof(float3), device);
+    			cudaMemPrefetchAsync(&F[offset], count*sizeof(float3), device);
+
+				getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,0);
+				cudaErrorCheck(__FILE__, __LINE__);
+				moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,DT,t,NPerGPU,N,0);
+				cudaErrorCheck(__FILE__, __LINE__);
+			}
+
+		
+		}
 
 		// Syncing CPU with GPUs.
 		/*for(int i = 0; i < NumberOfGpus; i++)
@@ -376,26 +385,26 @@ void nBody()
 					cudaErrorCheck(__FILE__, __LINE__);
 				}
 			}
-		}
+		}*/
 		
 		// Syncing CPU with GPUs.
-		for(int i = 0; i < NumberOfGpus; i++)
-    		{
-			cudaSetDevice(i);
+		for(int device = 0; device < NumberOfGpus; device++)
+    	{
+			cudaSetDevice(device);
 			cudaDeviceSynchronize();
 			cudaErrorCheck(__FILE__, __LINE__);
-		}*/
-
-		cudaMemPrefetchAsync(P, N*sizeof(float3), cudaCpuDeviceId);
-		cudaDeviceSynchronize();
+		}
 
 		if(drawCount == DRAW_RATE) 
 		{	
+			cudaMemPrefetchAsync(P, N*sizeof(float3), cudaCpuDeviceId);
+			cudaDeviceSynchronize();
+
 			drawPicture();
 			drawCount = 0;
 		}
 		
-		t += dt;
+		t += DT;
 		drawCount++;
 	}
 }
@@ -451,4 +460,3 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
-
