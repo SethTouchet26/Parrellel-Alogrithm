@@ -163,7 +163,7 @@ void setup()
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
-	GridSize.x = (NPerGPU - 1)/BlockSize.x + 1; // This gives us the correct number of blocks.
+	GridSize.x = (N - 1)/BlockSize.x + 1; // This gives us the correct number of blocks.
 	GridSize.y = 1;
 	GridSize.z = 1;
 	
@@ -333,29 +333,29 @@ void nBody()
 {
 	int    drawCount = 0; 
 	float  t = 0.0;
-	//float dt = DT;
+	float dt = DT;
 	
 	printf("\n Simulation is running with %d bodies.\n", N);
 
 	int device = 0;
 	cudaSetDevice(device);
+
+	cudaMemPrefetchAsync(P, N*sizeof(float3), device);
+    cudaMemPrefetchAsync(V, N*sizeof(float3), device);
+    cudaMemPrefetchAsync(F, N*sizeof(float3), device);
+    cudaMemPrefetchAsync(M, N*sizeof(float), device);
+
+	cudaDeviceSynchronize();
 	
 	while(t < RUN_TIME)
 	{
 		// Adjusting bodies
-		cudaMemPrefetchAsync(P, N*sizeof(float3), device);
-        cudaMemPrefetchAsync(V, N*sizeof(float3), device);
-        cudaMemPrefetchAsync(F, N*sizeof(float3), device);
-        cudaMemPrefetchAsync(M, N*sizeof(float), device);
-
+	
 		getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,0);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,DT,t,NPerGPU,N,0);
+		moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,dt,t,NPerGPU,N,0);
 		cudaErrorCheck(__FILE__, __LINE__);
 
-		cudaDeviceSynchronize();
-		
-		
 		// Syncing CPU with GPUs.
 		/*for(int i = 0; i < NumberOfGpus; i++)
     		{
@@ -395,7 +395,7 @@ void nBody()
 			drawCount = 0;
 		}
 		
-		t += DT;
+		t += dt;
 		drawCount++;
 	}
 }
