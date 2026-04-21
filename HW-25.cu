@@ -58,6 +58,7 @@ void cudaErrorCheck(const char *, int);
 void drawPicture();
 void setup();
 void timer();
+long elaspedTime(struct timeval, struct timeval);
 void keyPressed(unsigned char, int, int);
 __global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int, int, int);
 __global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int, int, int);
@@ -266,7 +267,7 @@ void setup()
 		cudaErrorCheck(__FILE__, __LINE__);
 	}*/
 		
-	printf("\n Setup finished.\n");
+	printf("\n To start timing type s.\n");
 }
 
 __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int nPerGPU, int n, int device)
@@ -332,7 +333,7 @@ void nBody()
 {
 	int    drawCount = 0; 
 	float  t = 0.0;
-	float dt = DT;
+	//float dt = DT;
 	
 	printf("\n Simulation is running with %d bodies.\n", N);
 
@@ -342,20 +343,18 @@ void nBody()
 	while(t < RUN_TIME)
 	{
 		// Adjusting bodies
-		for(int i = 0; i < NumberOfGpus; i++)
-    		{
-			cudaMemPrefetchAsync(P, N*sizeof(float3), i);
-            cudaMemPrefetchAsync(V, N*sizeof(float3), i);
-            cudaMemPrefetchAsync(F, N*sizeof(float3), i);
-            cudaMemPrefetchAsync(M, N*sizeof(float), i);
+		cudaMemPrefetchAsync(P, N*sizeof(float3), device);
+        cudaMemPrefetchAsync(V, N*sizeof(float3), device);
+        cudaMemPrefetchAsync(F, N*sizeof(float3), device);
+        cudaMemPrefetchAsync(M, N*sizeof(float), device);
 
-			getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,i);
-			cudaErrorCheck(__FILE__, __LINE__);
-			moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,dt,t,NPerGPU,N,i);
-			cudaErrorCheck(__FILE__, __LINE__);
+		getForces<<<GridSize,BlockSize>>>(P,V,F,M,G,H,NPerGPU,N,0);
+		cudaErrorCheck(__FILE__, __LINE__);
+		moveBodies<<<GridSize,BlockSize>>>(P,V,F,M,Damp,DT,t,NPerGPU,N,0);
+		cudaErrorCheck(__FILE__, __LINE__);
 
-			cudaDeviceSynchronize();
-			}
+		cudaDeviceSynchronize();
+		
 		
 		// Syncing CPU with GPUs.
 		/*for(int i = 0; i < NumberOfGpus; i++)
@@ -396,7 +395,7 @@ void nBody()
 			drawCount = 0;
 		}
 		
-		t += dt;
+		t += DT;
 		drawCount++;
 	}
 }
