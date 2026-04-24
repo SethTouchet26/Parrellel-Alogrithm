@@ -140,11 +140,11 @@ void timer()
 	
 	drawPicture();
 	gettimeofday(&start, NULL);
-    		nBody();
-    		cudaDeviceSynchronize();
-		cudaErrorCheck(__FILE__, __LINE__);
-    	gettimeofday(&end, NULL);
-    	drawPicture();
+    nBody();
+    cudaDeviceSynchronize();
+	cudaErrorCheck(__FILE__, __LINE__);
+    gettimeofday(&end, NULL);
+    drawPicture();
     	
 	computeTime = elaspedTime(start, end);
 	printf("\n The compute time was %ld microseconds.\n\n", computeTime);
@@ -152,11 +152,11 @@ void timer()
 
 void setup()
 {
-    	float randomAngle1, randomAngle2, randomRadius;
-    	float d, dx, dy, dz;
-    	int test;
+    float randomAngle1, randomAngle2, randomRadius;
+    float d, dx, dy, dz;
+    int test;
     	
-    	BlockSize.x = BLOCK_SIZE;
+    BlockSize.x = BLOCK_SIZE;
 	BlockSize.y = 1;
 	BlockSize.z = 1;
 	
@@ -171,7 +171,7 @@ void setup()
     	V = (float3*)malloc(N*sizeof(float3));
     	F = (float3*)malloc(N*sizeof(float3));
     	
-    	cudaMalloc(&MGPU,N*sizeof(float));
+    cudaMalloc(&MGPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMalloc(&PGPU,N*sizeof(float3));
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -334,7 +334,7 @@ int main(int argc, char** argv)
 	{
 		printf("\n You need to enter the number of bodies (an int)"); 
 		printf("\n and if you want to draw the bodies as they move (1 draw, 0 don't draw),");
-		printf("\n on the comand line.\n"); 
+		printf("\n on the command line.\n"); 
 		exit(0);
 	}
 	else
@@ -391,3 +391,7 @@ int main(int argc, char** argv)
 	glutMainLoop();
 	return 0;
 }
+/*
+Base line without optimization: Compute time was * microseconds
+After optimization: Compute time was * microseconds
+*/
