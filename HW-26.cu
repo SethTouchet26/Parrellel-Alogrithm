@@ -34,7 +34,7 @@
 #include <sys/time.h>
 
 // Defines
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 256
 #define PI 3.14159265359
 #define DRAW_RATE 10
 
@@ -156,20 +156,15 @@ void setup()
     float d, dx, dy, dz;
     int test;
     	
-    BlockSize.x = BLOCK_SIZE;
-	BlockSize.y = 1;
-	BlockSize.z = 1;
+    BlockSize = dim3(BLOCK_SIZE);
+	GridSize = dim3(N + BLOCK_SIZE - 1)/BLOCK_SIZE); //Makes enough blocks to deal with the whole vector.
 	
-	GridSize.x = (N - 1)/BlockSize.x + 1; //Makes enough blocks to deal with the whole vector.
-	GridSize.y = 1;
-	GridSize.z = 1;
-	
-    	Damp = 0.5;
+    Damp = 0.5;
     	
-    	M = (float*)malloc(N*sizeof(float));
-    	P = (float3*)malloc(N*sizeof(float3));
-    	V = (float3*)malloc(N*sizeof(float3));
-    	F = (float3*)malloc(N*sizeof(float3));
+	M = (float*)malloc(N*sizeof(float));
+	P = (float3*)malloc(N*sizeof(float3));
+   	V = (float3*)malloc(N*sizeof(float3));
+   	F = (float3*)malloc(N*sizeof(float3));
     	
     cudaMalloc(&MGPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -247,59 +242,78 @@ void setup()
 
 __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n)
 {
-	float dx, dy, dz,d,d2;
-	float force_mag;
-	
-	int i = threadIdx.x + blockDim.x*blockIdx.x;
-	
-	if(i < n)
+	__shared__ float3 p_shared[BLOCK_SIZE];
+	__shared__ float  m_shared[BLOCK_SIZE];
+
+	float3 myPos = p[i];
+	float myMass = m[i];
+
+		float fx=0, fy=0, fz=0;
+
+	for(int tile=0; tile<gridDim.x; tile++)
 	{
-		f[i].x = 0.0f;
-		f[i].y = 0.0f;
-		f[i].z = 0.0f;
-		
-		for(int j = 0; j < n; j++)
+		int j = tile*blockDim.x + threadIdx.x;
+
+		if(j < n)
 		{
-			if(i != j)
-			{
-				dx = p[j].x-p[i].x;
-				dy = p[j].y-p[i].y;
-				dz = p[j].z-p[i].z;
-				d2 = dx*dx + dy*dy + dz*dz;
-				d  = sqrt(d2);
-				
-				force_mag  = (g*m[i]*m[j])/(d2) - (h*m[i]*m[j])/(d2*d2);
-				f[i].x += force_mag*dx/d;
-				f[i].y += force_mag*dy/d;
-				f[i].z += force_mag*dz/d;
-			}
+			p_shared[threadIdx.x] = p[j];
+			m_shared[threadIdx.x] = m[j];
 		}
+
+		__syncthreads();
+
+		int tileSize = min(blockDim.x, n - tile*blockDim.x);
+
+		#pragma unroll 4 
+		for(int k=0; k<tileSize; k++)
+		{
+			float3 pj = p_shared[k];
+
+			float dx = pj.x - myPos.x;
+			float dy = pj.y - myPos.y;
+			float dz = pj.z - myPos.z;
+
+			float d2 = dx*dx + dy*dy + dz*dz + 1e-10f;
+
+			float invD = rsqrtf(d2);
+			float invD2 = invD*invD;
+
+			float force = (g*myMass*m_shared[k])*invD2 - (h*myMass * m_shared[k])*invD2*invD2;
+
+			fx += force * dx * invD;
+			fy += force * dy * invD;
+			fz += force * dz * invD;
+		}
+
+		__syncthreads();
 	}
+
+	f[i] = make_float3(fx,fy,fz);
 }
 
 __global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int n)
 {	
-	int i = threadIdx.x + blockDim.x*blockIdx.x;
-	
-	if(i < n)
-	{
-		if(t == 0.0f)
-		{
-			v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt/2.0f;
-			v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt/2.0f;
-			v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt/2.0f;
-		}
-		else
-		{
-			v[i].x += ((f[i].x-damp*v[i].x)/m[i])*dt;
-			v[i].y += ((f[i].y-damp*v[i].y)/m[i])*dt;
-			v[i].z += ((f[i].z-damp*v[i].z)/m[i])*dt;
-		}
+	int i = threadIdx.x + blockIdx.x * blockDim.x;
+	if(i >= n) return;
 
-		p[i].x += v[i].x*dt;
-		p[i].y += v[i].y*dt;
-		p[i].z += v[i].z*dt;
+	float invMass = 1.0f / m[i];
+
+	if(t == 0.0f)
+	{
+		v[i].x += ((f[i].x - damp*v[i].x)*invMass)*dt*0.5f;
+		v[i].y += ((f[i].y - damp*v[i].y)*invMass)*dt*0.5f;
+		v[i].z += ((f[i].z - damp*v[i].z)*invMass)*dt*0.5f;
 	}
+	else
+	{
+		v[i].x += ((f[i].x - damp*v[i].x)*invMass)*dt;
+		v[i].y += ((f[i].y - damp*v[i].y)*invMass)*dt;
+		v[i].z += ((f[i].z - damp*v[i].z)*invMass)*dt;
+	}
+
+	p[i].x += v[i].x*dt;
+	p[i].y += v[i].y*dt;
+	p[i].z += v[i].z*dt;
 }
 
 void nBody()
@@ -337,12 +351,16 @@ int main(int argc, char** argv)
 		printf("\n on the command line.\n"); 
 		exit(0);
 	}
-	else
-	{
-		N = atoi(argv[1]);
-		DrawFlag = atoi(argv[2]);
-	}
 	
+	N = atoi(argv[1]);
+	DrawFlag = atoi(argv[2]);
+	
+	if ((N & (N - 1)) != 0 || N <= 256 || N >= 262144)
+	{
+		printf("N must be power of 2 and 256 < N < 262144\n");
+		exit(0);
+	}
+
 	setup();
 	
 	int XWindowSize = 1000;
