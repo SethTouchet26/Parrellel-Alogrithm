@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <cuda_runtime.h>
 
 // Defines
 #define BLOCK_SIZE 256
@@ -51,9 +52,9 @@
 
 // Globals
 int N, DrawFlag;
-float3 *P, *V, *F;
+float4 *P, *V, *F;
 float *M; 
-float3 *PGPU, *VGPU, *FGPU;
+float4 *PGPU, *VGPU, *FGPU;
 float *MGPU;
 float GlobeRadius, Diameter, Radius;
 float Damp;
@@ -67,8 +68,8 @@ long elaspedTime(struct timeval, struct timeval);
 void drawPicture();
 void timer();
 void setup();
-__global__ void getForces(float3 *, float3 *, float3 *, float *, float, float, int);
-__global__ void moveBodies(float3 *, float3 *, float3 *, float *, float, float, float, int);
+__global__ void getForces(float4 *, float4 *, float4 *, float *, float, float, int);
+__global__ void moveBodies(float4 *, float4 *, float4 *, float *, float, float, float, int);
 void nBody();
 int main(int, char**);
 
@@ -115,10 +116,9 @@ void drawPicture()
 {
 	int i;
 	
-	glClear(GL_COLOR_BUFFER_BIT);
-	glClear(GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
-	cudaMemcpyAsync(P, PGPU, N*sizeof(float3), cudaMemcpyDeviceToHost);
+	cudaMemcpy(P, PGPU, N*sizeof(float3), cudaMemcpyDeviceToHost);
 	cudaErrorCheck(__FILE__, __LINE__);
 	
 	glColor3d(1.0,1.0,0.5);
@@ -140,8 +140,10 @@ void timer()
 	
 	drawPicture();
 	gettimeofday(&start, NULL);
+
     nBody();
     cudaDeviceSynchronize();
+
 	cudaErrorCheck(__FILE__, __LINE__);
     gettimeofday(&end, NULL);
     drawPicture();
@@ -156,23 +158,23 @@ void setup()
     float d, dx, dy, dz;
     int test;
     	
-    BlockSize = dim3(BLOCK_SIZE);
-	GridSize = dim3(N + BLOCK_SIZE - 1)/BLOCK_SIZE); //Makes enough blocks to deal with the whole vector.
+    BlockSize = dim3(BLOCK_SIZE,1,1);
+	GridSize = dim3((N + BLOCK_SIZE - 1) / BLOCK_SIZE),1,1; //Makes enough blocks to deal with the whole vector.
 	
     Damp = 0.5;
     	
 	M = (float*)malloc(N*sizeof(float));
-	P = (float3*)malloc(N*sizeof(float3));
-   	V = (float3*)malloc(N*sizeof(float3));
-   	F = (float3*)malloc(N*sizeof(float3));
+	P = (float4*)malloc(N*sizeof(float4));
+   	V = (float4*)malloc(N*sizeof(float4));
+   	F = (float4*)malloc(N*sizeof(float4));
     	
     cudaMalloc(&MGPU,N*sizeof(float));
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMalloc(&PGPU,N*sizeof(float3));
+	cudaMalloc(&PGPU,N*sizeof(float4));
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMalloc(&VGPU,N*sizeof(float3));
+	cudaMalloc(&VGPU,N*sizeof(float4));
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMalloc(&FGPU,N*sizeof(float3));
+	cudaMalloc(&FGPU,N*sizeof(float4));
 	cudaErrorCheck(__FILE__, __LINE__);
     	
 	Diameter = pow(H/G, 1.0/(LJQ - LJP)); // This is the value where the force is zero for the L-J type force.
@@ -227,11 +229,11 @@ void setup()
 		M[i] = 1.0;
 	}
 	
-	cudaMemcpyAsync(PGPU, P, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(PGPU, P, N*sizeof(float4), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(VGPU, V, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(VGPU, V, N*sizeof(float4), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
-	cudaMemcpyAsync(FGPU, F, N*sizeof(float3), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(FGPU, F, N*sizeof(float4), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
 	cudaMemcpyAsync(MGPU, M, N*sizeof(float), cudaMemcpyHostToDevice);
 	cudaErrorCheck(__FILE__, __LINE__);
@@ -240,15 +242,20 @@ void setup()
 	printf("\n To quit type q in the nBody window.\n");
 }
 
-__global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, float h, int n)
+__global__ void getForces(float4 *p, float4 *v, float4 *f, float *m, float g, float h, int n)
 {
-	__shared__ float3 p_shared[BLOCK_SIZE];
+	__shared__ float4 p_shared[BLOCK_SIZE];
 	__shared__ float  m_shared[BLOCK_SIZE];
 
-	float3 myPos = p[i];
+	int i = threadIdx.x + blockDim.x*blockIdx.x;
+	if(i>=n) return;
+
+	float4 myPos = p[i];
 	float myMass = m[i];
 
-		float fx=0, fy=0, fz=0;
+	float dx, dy,d2, dz,invD,invD2,invD4;
+	float force;
+	float fx=0, fy=0, fz=0;
 
 	for(int tile=0; tile<gridDim.x; tile++)
 	{
@@ -262,23 +269,22 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 
 		__syncthreads();
 
-		int tileSize = min(blockDim.x, n - tile*blockDim.x);
+		int tileSize = (tile*blockDim.x +blockDim.x < n) ? blockDim.x : (n - tile*blockDim.x);
 
 		#pragma unroll 4 
 		for(int k=0; k<tileSize; k++)
 		{
-			float3 pj = p_shared[k];
+			dx = p_shared[k].x - myPos.x;
+			dy = p_shared[k].y - myPos.y;
+			dz = p_shared[k].z - myPos.z;
 
-			float dx = pj.x - myPos.x;
-			float dy = pj.y - myPos.y;
-			float dz = pj.z - myPos.z;
+			d2 = dx*dx + dy*dy + dz*dz + 1e-10f;
 
-			float d2 = dx*dx + dy*dy + dz*dz + 1e-10f;
+			invD = rsqrtf(d2);
+			invD2 = invD*invD;
+			invD4 = invD2*invD2;
 
-			float invD = rsqrtf(d2);
-			float invD2 = invD*invD;
-
-			float force = (g*myMass*m_shared[k])*invD2 - (h*myMass * m_shared[k])*invD2*invD2;
+			force = (g*myMass*m_shared[k])*invD2 - (h*myMass * m_shared[k])*invD4;
 
 			fx += force * dx * invD;
 			fy += force * dy * invD;
@@ -288,29 +294,22 @@ __global__ void getForces(float3 *p, float3 *v, float3 *f, float *m, float g, fl
 		__syncthreads();
 	}
 
-	f[i] = make_float3(fx,fy,fz);
+	f[i].x = fx;
+	f[i].y = fy;
+	f[i].z = fz;
 }
 
-__global__ void moveBodies(float3 *p, float3 *v, float3 *f, float *m, float damp, float dt, float t, int n)
+__global__ void moveBodies(float4 *p, float4 *v, float4 *f, float *m, float damp, float dt, float t, int n)
 {	
 	int i = threadIdx.x + blockIdx.x * blockDim.x;
 	if(i >= n) return;
 
-	float invMass = 1.0f / m[i];
+	float factor = (t == 0.0f) ? 0.5f : 1.0f;
 
-	if(t == 0.0f)
-	{
-		v[i].x += ((f[i].x - damp*v[i].x)*invMass)*dt*0.5f;
-		v[i].y += ((f[i].y - damp*v[i].y)*invMass)*dt*0.5f;
-		v[i].z += ((f[i].z - damp*v[i].z)*invMass)*dt*0.5f;
-	}
-	else
-	{
-		v[i].x += ((f[i].x - damp*v[i].x)*invMass)*dt;
-		v[i].y += ((f[i].y - damp*v[i].y)*invMass)*dt;
-		v[i].z += ((f[i].z - damp*v[i].z)*invMass)*dt;
-	}
-
+	v[i].x += ((f[i].x - damp*v[i].x)/m[i]) * dt * factor;
+	v[i].y += ((f[i].y - damp*v[i].y)/m[i]) * dt * factor;
+	v[i].z += ((f[i].z - damp*v[i].z)/m[i]) * dt * factor;
+	
 	p[i].x += v[i].x*dt;
 	p[i].y += v[i].y*dt;
 	p[i].z += v[i].z*dt;
@@ -320,24 +319,20 @@ void nBody()
 {
 	int    drawCount = 0; 
 	float  t = 0.0;
-	float dt = 0.0001;
 
 	while(t < RUN_TIME)
 	{
 		getForces<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, G, H, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		moveBodies<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, Damp, dt, t, N);
+		moveBodies<<<GridSize,BlockSize>>>(PGPU, VGPU, FGPU, MGPU, Damp, DT, t, N);
 		cudaErrorCheck(__FILE__, __LINE__);
-		if(drawCount == DRAW_RATE) 
+		if(drawCount == DRAW_RATE && DrawFlag) 
 		{
-			if(DrawFlag) 
-			{	
-				drawPicture();
-			}
+			drawPicture();
 			drawCount = 0;
 		}
 		
-		t += dt;
+		t += DT;
 		drawCount++;
 	}
 }
@@ -395,7 +390,7 @@ int main(int argc, char** argv)
 	glutKeyboardFunc(keyPressed);
 	glutDisplayFunc(drawPicture);
 	
-	float3 eye = {0.0f, 0.0f, 2.0f*GlobeRadius};
+	float4 eye = {0.0f, 0.0f, 2.0f*GlobeRadius};
 	float near = 0.2;
 	float far = 5.0*GlobeRadius;
 	
